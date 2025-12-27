@@ -1,6 +1,5 @@
 import os
 import requests
-import json
 from dotenv import load_dotenv
 import pandas as pd
 
@@ -20,7 +19,7 @@ def fetch_stock_data(ticker: str, start_date: str, end_date: str) -> dict:
     Returns:
         dict: JSON response containing stock data.
     """
-    url = f"https://api.massive.com/v2/aggs/ticker/{ticker}/range/5/minute/{start_date}/{end_date}?adjusted=true&sort=asc&limit=50000&apiKey={API_KEY}"
+    url = f"https://api.massive.com/v2/aggs/ticker/{ticker}/range/10/minute/{start_date}/{end_date}?adjusted=true&sort=asc&limit=50000&apiKey={API_KEY}"
     response = requests.get(url)
     response.raise_for_status()
     return response.json()
@@ -43,6 +42,6 @@ def process_stock_data(data: dict) -> pd.DataFrame:
 
 if __name__ == "__main__":
 
-    data = fetch_stock_data("AAPL", "2023-12-28", "2025-12-27")
-    with open("./data/aapl_5min.json", "w") as f:
-        json.dump(data, f, indent=4)
+    data = fetch_stock_data("AAPL", "2025-12-01", "2025-12-27")
+    df = process_stock_data(data)
+    df.to_csv("data/AAPL_historical_data.csv")
