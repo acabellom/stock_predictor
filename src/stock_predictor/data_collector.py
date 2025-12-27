@@ -2,6 +2,7 @@ import os
 import requests
 import json
 from dotenv import load_dotenv
+import pandas as pd
 
 load_dotenv()
 
@@ -24,8 +25,24 @@ def fetch_stock_data(ticker: str, start_date: str, end_date: str) -> dict:
     response.raise_for_status()
     return response.json()
 
+def process_stock_data(data: dict) -> pd.DataFrame:
+    """
+    Process raw stock data into a pandas DataFrame.
+
+    Args:
+        data (dict): Raw JSON data from the API.
+
+    Returns:
+        pd.DataFrame: Processed DataFrame with datetime index and average price.
+    """
+    df = pd.json_normalize(data["results"])
+    df["t"] = pd.to_datetime(df["t"], unit="ms")
+    df.set_index("t", inplace=True)
+    df["average_price"] = (df["h"] + df["l"]) / 2
+    return df
+
 if __name__ == "__main__":
-    # Example usage
+
     data = fetch_stock_data("AAPL", "2023-12-28", "2025-12-27")
     with open("./data/aapl_5min.json", "w") as f:
         json.dump(data, f, indent=4)
