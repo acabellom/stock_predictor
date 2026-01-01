@@ -103,11 +103,35 @@ def create_s3_client():
     s3 = boto3.client(
         "s3",
         endpoint_url=os.getenv("ENDPOINT_URL"),
-        aws_access_key_id=os.getenv("MINIO_ROOT_USER"),
-        aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD"),
+        aws_access_key_id=os.getenv("ROOT_USER"),
+        aws_secret_access_key=os.getenv("ROOT_PASSWORD"),
     )
     return s3
 
+def upload_to_s3(s3_client, bucket_name: str, file_name: str, data: pd.DataFrame):
+    """
+    Upload a DataFrame as a CSV file to an S3 bucket.
+
+    Args:
+        s3_client (boto3.client): S3 client.
+        bucket_name (str): Name of the S3 bucket.
+        file_name (str): Name of the file to be saved in S3.
+        data (pd.DataFrame): DataFrame to upload.
+    """
+    existing_buckets = [b['Name'] for b in s3_client.list_buckets().get('Buckets', [])]
+    if bucket_name not in existing_buckets:
+        s3_client.create_bucket(Bucket=bucket_name)
+    csv_buffer = data.to_csv(index=True)
+    s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=csv_buffer)
+
+def main():
+    ticker = "AAPL"
+    raw_data = fetch_last_2_years(ticker)
+    processed_data = process_stock_data(raw_data)
+
+    s3_client = create_s3_client()
+    upload_to_s3(s3_client, f"{ticker.lower()}", f"raw_{(datetime.now() - timedelta(days=2*365)).strftime('%Y%m%d')}_{datetime.now().strftime('%Y%m%d')}.csv", processed_data)
+
 if __name__ == "__main__":
-    s3 = create_s3_client()
+    main()
 
