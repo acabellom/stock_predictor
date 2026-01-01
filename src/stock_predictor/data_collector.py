@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import calendar
 from time import sleep
+import boto3
 
 load_dotenv()
 
@@ -92,8 +93,21 @@ def process_stock_data(data: dict) -> pd.DataFrame:
     df["average_price"] = (df["h"] + df["l"]) / 2
     return df
 
-if __name__ == "__main__":
+def create_s3_client():
+    """
+    Create and return an S3 client using boto3.
 
-    data = fetch_last_2_years("AAPL")
-    df = process_stock_data(data)
-    df.to_csv("data/AAPL_historical_data.csv")
+    Returns:
+        boto3.client: Configured S3 client.
+    """
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=os.getenv("ENDPOINT_URL"),
+        aws_access_key_id=os.getenv("MINIO_ROOT_USER"),
+        aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD"),
+    )
+    return s3
+
+if __name__ == "__main__":
+    s3 = create_s3_client()
+
