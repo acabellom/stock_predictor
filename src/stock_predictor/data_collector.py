@@ -158,7 +158,7 @@ def upload_to_s3(s3_client, bucket_name: str, file_name: str, data: pd.DataFrame
     s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=csv_buffer)
 
 
-def merge_raw_data(ticker: str, s3_client) -> pd.DataFrame:
+def merge_raw_data(ticker: str, s3_client, new_data: pd.DataFrame) -> pd.DataFrame:
     """
     Merge all raw CSV files from S3 for a given ticker into a single DataFrame.
 
@@ -170,17 +170,39 @@ def merge_raw_data(ticker: str, s3_client) -> pd.DataFrame:
         pd.DataFrame: Merged DataFrame containing all raw data.
     """
     bucket_name = ticker.lower()
-    merged_df = pd.DataFrame()
+    merged_df = new_data.copy()
 
     response = s3_client.list_objects_v2(Bucket=bucket_name)
     for obj in response.get("Contents", []):
         file_key = obj["Key"]
-        obj_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
-        df = pd.read_csv(obj_response["Body"], parse_dates=["t"], index_col="t")
-        merged_df = pd.concat([merged_df, df])
+        if file_key.startswith("raw_"):
+            obj_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
+            df = pd.read_csv(obj_response["Body"], parse_dates=["t"], index_col="t")
+            merged_df = pd.concat([merged_df, df])
 
+    merged_df = merged_df[~merged_df.index.duplicated(keep="first")]
     merged_df.sort_index(inplace=True)
     return merged_df
+
+
+def get_lowest_date_in_s3(ticker: str, s3_client) -> str:
+    """
+    Get the lowest date from the raw data files stored in S3 for a given ticker.
+    Args:
+        ticker (str): Stock ticker symbol.
+        s3_client (boto3.client): S3 client.
+    Returns:
+        str: The lowest date in 'YYYYMMDD' format.
+    """
+
+    bucket_name = ticker.lower()
+
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    for obj in response.get("Contents", []):
+        file_key = obj["Key"]
+        if file_key.startswith("raw_"):
+            parts = file_key.split("_")
+    return parts[1]
 
 
 def main():
@@ -189,11 +211,12 @@ def main():
     processed_data = process_stock_data(raw_data)
 
     s3_client = create_s3_client()
+    final_data = merge_raw_data(ticker, s3_client, processed_data)
     upload_to_s3(
         s3_client,
         f"{ticker.lower()}",
-        f"raw_{(datetime.now() - timedelta(days=2 * 365)).strftime('%Y%m%d')}_{datetime.now().strftime('%Y%m%d')}.csv",
-        processed_data,
+        f"raw_{get_lowest_date_in_s3(ticker, s3_client)}_{datetime.now().strftime('%Y%m%d')}.csv",
+        final_data,
     )
 
 
