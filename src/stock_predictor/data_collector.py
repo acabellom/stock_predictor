@@ -58,7 +58,7 @@ def fetch_last_2_years(ticker: str) -> list:
     year = start_date.year
     month = start_date.month
     
-    while (year < today.year) or (year == today.year and month <= today.month):
+    while (year < today.year) or (year == today.year and month < today.month):
         try:
             print(f"downloading {ticker} {year}-{month:02d}...")
             month_data = fetch_stock_data_month(ticker, year, month)
@@ -74,8 +74,39 @@ def fetch_last_2_years(ticker: str) -> list:
         if month > 12:
             month = 1
             year += 1
+    try:
+        all_data.extend(fetch_last_month_(ticker)['results'])
+    except Exception as e:
+        print(f"Error fetching data for last month {ticker}: {e}")
     
     return all_data
+
+def fetch_last_month_(ticker: str) -> dict:
+    """
+    Fetch stock data for the last month up to today.
+    Args:
+        ticker (str): Stock ticker symbol.
+    Returns:
+        dict: JSON response containing stock data for the last month.
+    """
+    
+    today = datetime.today()
+    start_month=today.replace(day=1)
+    start_str = start_month.strftime("%Y-%m-%d")
+    end_str = today.strftime("%Y-%m-%d")
+    
+    url = (
+        f"https://api.massive.com/v2/aggs/ticker/{ticker}/range/10/minute/"
+        f"{start_str}/{end_str}?adjusted=true&sort=asc&limit=50000&apiKey={API_KEY}"
+    )
+    response = requests.get(url)
+    response.raise_for_status()
+    
+    return response.json()
+
+    
+
+
 
 def process_stock_data(data: dict) -> pd.DataFrame:
     """
