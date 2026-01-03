@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import calendar
 from time import sleep
 import boto3
+from logger_config import logger
 
 load_dotenv()
 
@@ -62,15 +63,15 @@ def fetch_last_2_years(ticker: str) -> list:
 
     while (year < today.year) or (year == today.year and month < today.month):
         try:
-            print(f"downloading {ticker} {year}-{month:02d}...")
+            logger.info(f"downloading {ticker} {year}-{month:02d}...")
             month_data = fetch_stock_data_month(ticker, year, month)
             sleep(12)
             if "results" in month_data:
                 all_data.extend(month_data["results"])
             else:
-                print(f"No data for {ticker} {year}-{month:02d}")
+                logger.warning(f"No data for {ticker} {year}-{month:02d}")
         except Exception as e:
-            print(f"Error fetching data for {ticker} {year}-{month:02d}: {e}")
+            logger.error(f"Error fetching data for {ticker} {year}-{month:02d}: {e}")
 
         month += 1
         if month > 12:
@@ -79,7 +80,7 @@ def fetch_last_2_years(ticker: str) -> list:
     try:
         all_data.extend(fetch_last_month_(ticker)["results"])
     except Exception as e:
-        print(f"Error fetching data for last month {ticker}: {e}")
+        logger.error(f"Error fetching data for last month {ticker}: {e}")
 
     return all_data
 
@@ -118,10 +119,12 @@ def process_stock_data(data: dict) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Processed DataFrame with datetime index and average price.
     """
+    logger.info("Processing stock data...")
     df = pd.json_normalize(data)
     df["t"] = pd.to_datetime(df["t"], unit="ms")
     df.set_index("t", inplace=True)
     df["average_price"] = (df["h"] + df["l"]) / 2
+    logger.info("Stock data processed successfully.")
     return df
 
 
@@ -132,6 +135,7 @@ def create_s3_client():
     Returns:
         boto3.client: Configured S3 client.
     """
+    logger.info("Creating S3 client...")
     s3 = boto3.client(
         "s3",
         endpoint_url=os.getenv("ENDPOINT_URL"),
@@ -151,11 +155,14 @@ def upload_to_s3(s3_client, bucket_name: str, file_name: str, data: pd.DataFrame
         file_name (str): Name of the file to be saved in S3.
         data (pd.DataFrame): DataFrame to upload.
     """
+    logger.info(f"Checking if bucket {bucket_name}exists...")
     existing_buckets = [b["Name"] for b in s3_client.list_buckets().get("Buckets", [])]
     if bucket_name not in existing_buckets:
+        logger.info(f"Creating bucket {bucket_name}...")
         s3_client.create_bucket(Bucket=bucket_name)
     csv_buffer = data.to_csv(index=True)
     s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=csv_buffer)
+    logger.info(f"Uploaded {file_name} to bucket {bucket_name}.")
 
 
 def merge_raw_data(
@@ -173,7 +180,7 @@ def merge_raw_data(
     """
     bucket_name = ticker.lower()
     merged_df = new_data.copy()
-
+    logger.info(f"Merging old raw data files from bucket {bucket_name}...")
     response = s3_client.list_objects_v2(Bucket=bucket_name)
     for obj in response.get("Contents", []):
         file_key = obj["Key"]
@@ -181,7 +188,7 @@ def merge_raw_data(
             obj_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
             df = pd.read_csv(obj_response["Body"], parse_dates=["t"], index_col="t")
             merged_df = pd.concat([merged_df, df])
-
+    logger.info(f"Merging completed: actual data and {file_key}")
     merged_df = merged_df[~merged_df.index.duplicated(keep="first")]
     merged_df.sort_index(inplace=True)
     return (merged_df, file_key)
@@ -198,12 +205,13 @@ def get_lowest_date_in_s3(ticker: str, s3_client) -> str:
     """
 
     bucket_name = ticker.lower()
-
+    logger.info(f"Getting lowest date from S3 bucket {bucket_name}...")
     response = s3_client.list_objects_v2(Bucket=bucket_name)
     for obj in response.get("Contents", []):
         file_key = obj["Key"]
         if file_key.startswith("raw_"):
             parts = file_key.split("_")
+    logger.info(f"Lowest date found: {parts[1]}")
     return parts[1]
 
 
@@ -216,6 +224,7 @@ def store_old_data(s3_client, ticker: str, old_file_key: str):
         ticker (str): Stock ticker symbol.
         old_file_key (str): The key of the old raw data file to be archived.
     """
+    logger.info(f"Archiving old data file {old_file_key} in bucket {ticker.lower()}...")
     bucket_name = f"{ticker.lower()}"
     archive_key = f"archive/{old_file_key}"
 
@@ -225,11 +234,15 @@ def store_old_data(s3_client, ticker: str, old_file_key: str):
         Key=archive_key,
     )
     s3_client.delete_object(Bucket=bucket_name, Key=old_file_key)
+    logger.info(f"Archived {old_file_key} to {archive_key}.")
 
 
 def main():
     ticker = "AAPL"
+    logger.info(f"Starting data collection for {ticker}...")
     raw_data = fetch_last_2_years(ticker)
+    logger.info(f"Fetched {len(raw_data)} data points for {ticker}.")
+    logger.info("Processing stock data...")
     processed_data = process_stock_data(raw_data)
 
     s3_client = create_s3_client()
