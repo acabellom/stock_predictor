@@ -158,7 +158,9 @@ def upload_to_s3(s3_client, bucket_name: str, file_name: str, data: pd.DataFrame
     s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=csv_buffer)
 
 
-def merge_raw_data(ticker: str, s3_client, new_data: pd.DataFrame) -> pd.DataFrame:
+def merge_raw_data(
+    ticker: str, s3_client, new_data: pd.DataFrame
+) -> list[pd.DataFrame, str]:
     """
     Merge all raw CSV files from S3 for a given ticker into a single DataFrame.
 
@@ -182,7 +184,7 @@ def merge_raw_data(ticker: str, s3_client, new_data: pd.DataFrame) -> pd.DataFra
 
     merged_df = merged_df[~merged_df.index.duplicated(keep="first")]
     merged_df.sort_index(inplace=True)
-    return merged_df
+    return (merged_df, file_key)
 
 
 def get_lowest_date_in_s3(ticker: str, s3_client) -> str:
@@ -205,19 +207,40 @@ def get_lowest_date_in_s3(ticker: str, s3_client) -> str:
     return parts[1]
 
 
+def store_old_data(s3_client, ticker: str, old_file_key: str):
+    """
+    Store the old raw data file in an 'archive' folder within the S3 bucket.
+
+    Args:
+        s3_client (boto3.client): S3 client.
+        ticker (str): Stock ticker symbol.
+        old_file_key (str): The key of the old raw data file to be archived.
+    """
+    bucket_name = f"{ticker.lower()}"
+    archive_key = f"archive/{old_file_key}"
+
+    s3_client.copy_object(
+        Bucket=bucket_name,
+        CopySource={"Bucket": bucket_name, "Key": old_file_key},
+        Key=archive_key,
+    )
+    s3_client.delete_object(Bucket=bucket_name, Key=old_file_key)
+
+
 def main():
     ticker = "AAPL"
     raw_data = fetch_last_2_years(ticker)
     processed_data = process_stock_data(raw_data)
 
     s3_client = create_s3_client()
-    final_data = merge_raw_data(ticker, s3_client, processed_data)
+    final_data, old_file_key = merge_raw_data(ticker, s3_client, processed_data)
     upload_to_s3(
         s3_client,
         f"{ticker.lower()}",
         f"raw_{get_lowest_date_in_s3(ticker, s3_client)}_{datetime.now().strftime('%Y%m%d')}.csv",
         final_data,
     )
+    store_old_data(s3_client, ticker, old_file_key)
 
 
 if __name__ == "__main__":
