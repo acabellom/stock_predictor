@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import calendar
 from time import sleep
 import boto3
-from logger_config import logger
+from stock_predictor.logger_config import logger
 
 load_dotenv()
 
