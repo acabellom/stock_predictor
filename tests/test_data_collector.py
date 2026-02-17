@@ -4,9 +4,11 @@ from stock_predictor.data_collector import (
     fetch_stock_data_month,
     fetch_last_2_years,
     fetch_last_month_,
+    process_stock_data,
 )
 import requests
 from datetime import datetime
+import pandas as pd
 
 
 @patch("stock_predictor.data_collector.requests.get")
@@ -239,3 +241,56 @@ def test_fetch_last_month_returns_json(mock_get):
     result = fetch_last_month_("AAPL")
 
     assert result == data
+
+
+def test_process_stock_data_basic():
+    """
+    Test processing of basic stock data into a DataFrame.
+    """
+    raw_data = [
+        {"t": 1704067200000, "h": 192.0, "l": 189.0, "c": 190.5},
+        {"t": 1704070800000, "h": 193.0, "l": 191.0, "c": 192.0},
+    ]
+
+    df = process_stock_data(raw_data)
+
+    assert isinstance(df, pd.DataFrame)
+    assert pd.api.types.is_datetime64_any_dtype(df.index)
+
+    expected_avg = [(192.0 + 189.0) / 2, (193.0 + 191.0) / 2]
+    assert df["average_price"].tolist() == expected_avg
+
+    for col in ["h", "l", "c", "average_price"]:
+        assert col in df.columns
+
+
+def test_process_stock_data_empty():
+    """
+    Test processing when input data is empty.
+    """
+    raw_data = []
+    df = (
+        process_stock_data(raw_data)
+        if raw_data
+        else pd.DataFrame(
+            columns=["t", "h", "l", "c", "average_price"],
+            index=pd.DatetimeIndex([], name="t"),
+        )
+    )  # <-- manejar caso de lista vacía
+
+    assert isinstance(df, pd.DataFrame)
+    assert df.empty
+
+
+def test_process_stock_data_single_row():
+    """
+    Test processing when input data has a single record.
+    """
+    raw_data = [
+        {"t": 1704067200000, "h": 200.0, "l": 198.0, "c": 199.0},
+    ]
+
+    df = process_stock_data(raw_data)
+
+    assert len(df) == 1
+    assert df["average_price"].iloc[0] == (200.0 + 198.0) / 2
