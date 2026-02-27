@@ -5,10 +5,12 @@ from stock_predictor.data_collector import (
     fetch_last_2_years,
     fetch_last_month_,
     process_stock_data,
+    create_s3_client,
 )
 import requests
 from datetime import datetime
 import pandas as pd
+import boto3
 
 
 @patch("stock_predictor.data_collector.requests.get")
@@ -294,3 +296,70 @@ def test_process_stock_data_single_row():
 
     assert len(df) == 1
     assert df["average_price"].iloc[0] == (200.0 + 198.0) / 2
+
+
+def test_create_s3_client_calls_boto3_client(monkeypatch):
+    """
+    Test that create_s3_client calls boto3.client with correct parameters from environment variables.
+    :param monkeypatch: pytest fixture for patching.
+    """
+    calls = {}
+
+    def mock_boto3_client(
+        service_name,
+        endpoint_url=None,
+        aws_access_key_id=None,
+        aws_secret_access_key=None,
+    ):
+        calls["service_name"] = service_name
+        calls["endpoint_url"] = endpoint_url
+        calls["aws_access_key_id"] = aws_access_key_id
+        calls["aws_secret_access_key"] = aws_secret_access_key
+        return "mock_s3_client"
+
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+
+    monkeypatch.setenv("ENDPOINT_URL", "http://fake-endpoint")
+    monkeypatch.setenv("ROOT_USER", "fake_user")
+    monkeypatch.setenv("ROOT_PASSWORD", "fake_password")
+
+    client = create_s3_client()
+
+    assert client == "mock_s3_client"
+    assert calls["service_name"] == "s3"
+    assert calls["endpoint_url"] == "http://fake-endpoint"
+    assert calls["aws_access_key_id"] == "fake_user"
+    assert calls["aws_secret_access_key"] == "fake_password"
+
+
+def test_create_s3_client_without_env_vars(monkeypatch):
+    """
+    Test that create_s3_client can be called without environment variables and handles it gracefully.
+    :param monkeypatch: pytest fixture for patching.
+    """
+    calls = {}
+
+    def mock_boto3_client(
+        service_name,
+        endpoint_url=None,
+        aws_access_key_id=None,
+        aws_secret_access_key=None,
+    ):
+        calls["endpoint_url"] = endpoint_url
+        calls["aws_access_key_id"] = aws_access_key_id
+        calls["aws_secret_access_key"] = aws_secret_access_key
+        return "mock_s3_client"
+
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+
+    # Eliminar variables de entorno por si existen
+    monkeypatch.delenv("ENDPOINT_URL", raising=False)
+    monkeypatch.delenv("ROOT_USER", raising=False)
+    monkeypatch.delenv("ROOT_PASSWORD", raising=False)
+
+    client = create_s3_client()
+
+    assert client == "mock_s3_client"
+    assert calls["endpoint_url"] is None
+    assert calls["aws_access_key_id"] is None
+    assert calls["aws_secret_access_key"] is None
