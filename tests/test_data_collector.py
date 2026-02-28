@@ -6,6 +6,7 @@ from stock_predictor.data_collector import (
     fetch_last_month_,
     process_stock_data,
     create_s3_client,
+    upload_to_s3,
 )
 import requests
 from datetime import datetime
@@ -352,7 +353,6 @@ def test_create_s3_client_without_env_vars(monkeypatch):
 
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
 
-    # Eliminar variables de entorno por si existen
     monkeypatch.delenv("ENDPOINT_URL", raising=False)
     monkeypatch.delenv("ROOT_USER", raising=False)
     monkeypatch.delenv("ROOT_PASSWORD", raising=False)
@@ -363,3 +363,83 @@ def test_create_s3_client_without_env_vars(monkeypatch):
     assert calls["endpoint_url"] is None
     assert calls["aws_access_key_id"] is None
     assert calls["aws_secret_access_key"] is None
+
+
+def test_upload_to_s3_creates_bucket_if_not_exists(monkeypatch):
+    """
+    Test that upload_to_s3 creates the bucket if it does not exist and uploads the file.
+        :param monkeypatch: pytest fixture for patching.
+    """
+    calls = {}
+
+    class MockS3:
+        def list_buckets(self):
+            return {"Buckets": []}
+
+        def create_bucket(self, Bucket):
+            calls["create_bucket"] = Bucket
+
+        def put_object(self, Bucket, Key, Body):
+            calls["put_object"] = (Bucket, Key, Body)
+
+    s3_client = MockS3()
+
+    data = pd.DataFrame({"a": [1, 2, 3]})
+
+    upload_to_s3(s3_client, "test-bucket", "file.csv", data)
+
+    assert calls["create_bucket"] == "test-bucket"
+    assert calls["put_object"][0] == "test-bucket"
+    assert calls["put_object"][1] == "file.csv"
+    assert isinstance(calls["put_object"][2], str)
+
+
+def test_upload_to_s3_does_not_create_bucket_if_exists():
+    """
+    Test that upload_to_s3 does not create the bucket if it already exists and uploads the file.
+     :param monkeypatch: pytest fixture for patching.
+    """
+    calls = {}
+
+    class MockS3:
+        def list_buckets(self):
+            return {"Buckets": [{"Name": "test-bucket"}]}
+
+        def create_bucket(self, Bucket):
+            calls["create_bucket"] = Bucket
+
+        def put_object(self, Bucket, Key, Body):
+            calls["put_object"] = (Bucket, Key, Body)
+
+    s3_client = MockS3()
+
+    data = pd.DataFrame({"a": [1, 2, 3]})
+
+    upload_to_s3(s3_client, "test-bucket", "file.csv", data)
+
+    assert "create_bucket" not in calls
+    assert calls["put_object"][0] == "test-bucket"
+    assert calls["put_object"][1] == "file.csv"
+
+
+def test_upload_to_s3_sends_csv_data():
+    """
+    Test that upload_to_s3 sends the correct CSV data in the Body of the put_object call.
+     :param monkeypatch: pytest fixture for patching.
+    """
+
+    class MockS3:
+        def list_buckets(self):
+            return {"Buckets": [{"Name": "test-bucket"}]}
+
+        def put_object(self, Bucket, Key, Body):
+            self.body = Body
+
+    s3_client = MockS3()
+
+    data = pd.DataFrame({"a": [1, 2, 3]})
+
+    upload_to_s3(s3_client, "test-bucket", "file.csv", data)
+
+    assert "a" in s3_client.body
+    assert "1" in s3_client.body
