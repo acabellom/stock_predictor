@@ -8,6 +8,7 @@ from stock_predictor.data_collector import (
     create_s3_client,
     upload_to_s3,
     merge_raw_data,
+    get_lowest_date_in_s3,
 )
 import requests
 from datetime import datetime
@@ -603,3 +604,92 @@ def test_merge_raw_data_empty_bucket():
 
     with pytest.raises(UnboundLocalError):
         merge_raw_data("AAPL", MockS3(), new_data)
+
+
+def test_get_lowest_date_in_s3_single_raw_file():
+    """
+    Test getting lowest date from a single raw_ file.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "raw_20240101_data.csv"},
+                ]
+            }
+
+    result = get_lowest_date_in_s3("AAPL", MockS3())
+
+    assert result == "20240101"
+
+
+def test_get_lowest_date_in_s3_multiple_raw_files_returns_last_found():
+    """
+    Test that when multiple raw_ files exist,
+    the function returns the date from the last iterated raw_ file.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "raw_20220101_data.csv"},
+                    {"Key": "raw_20230101_data.csv"},
+                ]
+            }
+
+    result = get_lowest_date_in_s3("AAPL", MockS3())
+
+    assert result == "20230101"
+
+
+def test_get_lowest_date_in_s3_ignores_non_raw_files():
+    """
+    Test that non raw_ files are ignored.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "processed.csv"},
+                    {"Key": "raw_20231231_data.csv"},
+                ]
+            }
+
+    result = get_lowest_date_in_s3("AAPL", MockS3())
+
+    assert result == "20231231"
+
+
+def test_get_lowest_date_in_s3_no_raw_files():
+    """
+    Test behavior when there are no raw_ files.
+    This exposes a bug in the current implementation.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "processed.csv"},
+                ]
+            }
+
+    with pytest.raises(UnboundLocalError):
+        get_lowest_date_in_s3("AAPL", MockS3())
+
+
+def test_get_lowest_date_in_s3_empty_bucket():
+    """
+    Test behavior when bucket is empty.
+    This exposes a bug in the current implementation.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {}
+
+    with pytest.raises(UnboundLocalError):
+        get_lowest_date_in_s3("AAPL", MockS3())
