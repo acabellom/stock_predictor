@@ -182,7 +182,11 @@ def merge_raw_data(
     merged_df = new_data.copy()
     logger.info(f"Merging old raw data files from bucket {bucket_name}...")
     response = s3_client.list_objects_v2(Bucket=bucket_name)
-    for obj in response.get("Contents", []):
+    content = response.get("Contents", [])
+    if content == []:
+        logger.info("No old raw data files found in S3 bucket. Merging skipped.")
+        return (merged_df, "")
+    for obj in content:
         file_key = obj["Key"]
         if file_key.startswith("raw_"):
             obj_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
@@ -207,7 +211,12 @@ def get_lowest_date_in_s3(ticker: str, s3_client) -> str:
     bucket_name = ticker.lower()
     logger.info(f"Getting lowest date from S3 bucket {bucket_name}...")
     response = s3_client.list_objects_v2(Bucket=bucket_name)
-    for obj in response.get("Contents", []):
+    content = response.get("Contents", [])
+    if content == []:
+        logger.info("No files found in S3 bucket. Returning today 2 year ago as lowest date.")
+        return (datetime.now() - timedelta(days=730)).strftime("%Y%m%d")
+    for obj in content:
+
         file_key = obj["Key"]
         if file_key.startswith("raw_"):
             parts = file_key.split("_")
@@ -224,6 +233,9 @@ def store_old_data(s3_client, ticker: str, old_file_key: str):
         ticker (str): Stock ticker symbol.
         old_file_key (str): The key of the old raw data file to be archived.
     """
+    if old_file_key == "":
+        logger.info("No old raw data file to archive. Skipping archiving step.")
+        return
     logger.info(f"Archiving old data file {old_file_key} in bucket {ticker.lower()}...")
     bucket_name = f"{ticker.lower()}"
     archive_key = f"archive/{old_file_key}"
@@ -249,6 +261,10 @@ def check_highest_date_in_s3(ticker: str, s3_client) -> str:
     bucket_name = ticker.lower()
     logger.info(f"Getting highest date from S3 bucket {bucket_name}...")
     response = s3_client.list_objects_v2(Bucket=bucket_name)
+    content = response.get("Contents", [])
+    if content == []:
+        logger.info("No files found in S3 bucket. Returning '00000000' as highest date.")
+        return "00000000"
     for obj in response.get("Contents", []):
         file_key = obj["Key"]
         if file_key.startswith("raw_"):
@@ -256,16 +272,34 @@ def check_highest_date_in_s3(ticker: str, s3_client) -> str:
     logger.info(f"Highest date found: {parts[2].split('.')[0]}")
     return parts[2].split(".")[0]
 
+def create_bucket_if_not_exists(s3_client, bucket_name: str):
+    """
+    Create an S3 bucket if it does not already exist.
+
+    Args:
+        s3_client (boto3.client): S3 client.
+        bucket_name (str): Name of the S3 bucket to create.
+    """
+    logger.info(f"Checking if bucket {bucket_name} exists...")
+    existing_buckets = [b["Name"] for b in s3_client.list_buckets().get("Buckets", [])]
+    if bucket_name not in existing_buckets:
+        logger.info(f"Creating bucket {bucket_name}...")
+        s3_client.create_bucket(Bucket=bucket_name)
+        logger.info(f"Bucket {bucket_name} created successfully.")
+    else:
+        logger.info(f"Bucket {bucket_name} already exists.")
 
 def main():
-    ticker = "AAPL"
+    ticker = "TSLA"
     logger.info(f"Starting data collection for {ticker}...")
-    if check_highest_date_in_s3(ticker, create_s3_client()) < datetime.now().strftime("%Y%m%d"):
+    s3_client = create_s3_client()
+    create_bucket_if_not_exists(s3_client, ticker.lower())
+    if check_highest_date_in_s3(ticker, s3_client) < datetime.now().strftime("%Y%m%d"):
         raw_data = fetch_last_2_years(ticker)
         logger.info(f"Fetched {len(raw_data)} data points for {ticker}.")
         logger.info("Processing stock data...")
         processed_data = process_stock_data(raw_data)
-        s3_client = create_s3_client()
+        
         final_data, old_file_key = merge_raw_data(ticker, s3_client, processed_data)
         final_data.to_csv(f"data/{ticker}_historical_data.csv")
         logger.info(f"Processed and saved historical data for {ticker}.")
