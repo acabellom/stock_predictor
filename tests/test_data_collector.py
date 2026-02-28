@@ -11,7 +11,7 @@ from stock_predictor.data_collector import (
     get_lowest_date_in_s3,
 )
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import boto3
 
@@ -602,8 +602,8 @@ def test_merge_raw_data_empty_bucket():
     )
     new_data.index.name = "t"
 
-    with pytest.raises(UnboundLocalError):
-        merge_raw_data("AAPL", MockS3(), new_data)
+    _, old_data = merge_raw_data("AAPL", MockS3(), new_data)
+    assert old_data == ""
 
 
 def test_get_lowest_date_in_s3_single_raw_file():
@@ -691,5 +691,5 @@ def test_get_lowest_date_in_s3_empty_bucket():
         def list_objects_v2(self, Bucket):
             return {}
 
-    with pytest.raises(UnboundLocalError):
-        get_lowest_date_in_s3("AAPL", MockS3())
+    result = get_lowest_date_in_s3("AAPL", MockS3())
+    assert result == (datetime.now() - timedelta(days=730)).strftime("%Y%m%d")
