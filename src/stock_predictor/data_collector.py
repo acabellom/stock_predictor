@@ -236,24 +236,48 @@ def store_old_data(s3_client, ticker: str, old_file_key: str):
     s3_client.delete_object(Bucket=bucket_name, Key=old_file_key)
     logger.info(f"Archived {old_file_key} to {archive_key}.")
 
+def check_highest_date_in_s3(ticker: str, s3_client) -> str:
+    """
+    Get the highest date from the raw data files stored in S3 for a given ticker.
+    Args:
+        ticker (str): Stock ticker symbol.
+        s3_client (boto3.client): S3 client.
+    Returns:
+        str: The highest date in 'YYYYMMDD' format.
+    """
+
+    bucket_name = ticker.lower()
+    logger.info(f"Getting highest date from S3 bucket {bucket_name}...")
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    for obj in response.get("Contents", []):
+        file_key = obj["Key"]
+        if file_key.startswith("raw_"):
+            parts = file_key.split("_")
+    logger.info(f"Highest date found: {parts[2].split('.')[0]}")
+    return parts[2].split(".")[0]
+
 
 def main():
     ticker = "AAPL"
     logger.info(f"Starting data collection for {ticker}...")
-    raw_data = fetch_last_2_years(ticker)
-    logger.info(f"Fetched {len(raw_data)} data points for {ticker}.")
-    logger.info("Processing stock data...")
-    processed_data = process_stock_data(raw_data)
-
-    s3_client = create_s3_client()
-    final_data, old_file_key = merge_raw_data(ticker, s3_client, processed_data)
-    upload_to_s3(
-        s3_client,
-        f"{ticker.lower()}",
-        f"raw_{get_lowest_date_in_s3(ticker, s3_client)}_{datetime.now().strftime('%Y%m%d')}.csv",
-        final_data,
-    )
-    store_old_data(s3_client, ticker, old_file_key)
+    if check_highest_date_in_s3(ticker, create_s3_client()) < datetime.now().strftime("%Y%m%d"):
+        raw_data = fetch_last_2_years(ticker)
+        logger.info(f"Fetched {len(raw_data)} data points for {ticker}.")
+        logger.info("Processing stock data...")
+        processed_data = process_stock_data(raw_data)
+        s3_client = create_s3_client()
+        final_data, old_file_key = merge_raw_data(ticker, s3_client, processed_data)
+        final_data.to_csv(f"data/{ticker}_historical_data.csv")
+        logger.info(f"Processed and saved historical data for {ticker}.")
+        upload_to_s3(
+            s3_client,
+            f"{ticker.lower()}",
+            f"raw_{get_lowest_date_in_s3(ticker, s3_client)}_{datetime.now().strftime('%Y%m%d')}.csv",
+            final_data,
+        )
+        store_old_data(s3_client, ticker, old_file_key)
+    else:
+        logger.info(f"Data for {ticker} is already up to date in S3. No new data fetched.")
 
 
 if __name__ == "__main__":
