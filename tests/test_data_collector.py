@@ -7,6 +7,7 @@ from stock_predictor.data_collector import (
     process_stock_data,
     create_s3_client,
     upload_to_s3,
+    merge_raw_data,
 )
 import requests
 from datetime import datetime
@@ -279,7 +280,7 @@ def test_process_stock_data_empty():
             columns=["t", "h", "l", "c", "average_price"],
             index=pd.DatetimeIndex([], name="t"),
         )
-    )  # <-- manejar caso de lista vacía
+    )
 
     assert isinstance(df, pd.DataFrame)
     assert df.empty
@@ -443,3 +444,162 @@ def test_upload_to_s3_sends_csv_data():
 
     assert "a" in s3_client.body
     assert "1" in s3_client.body
+
+
+@patch("stock_predictor.data_collector.pd.read_csv")
+def test_merge_raw_data_multiple_raw_files(mock_read_csv):
+    """
+    Test merging multiple raw_ files from S3 correctly.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "raw_old1.csv"},
+                    {"Key": "raw_old2.csv"},
+                ]
+            }
+
+        def get_object(self, Bucket, Key):
+            return {"Body": "fake_body"}
+
+    new_data = pd.DataFrame(
+        {"value": [1]},
+        index=pd.to_datetime(["2024-01-02"]),
+    )
+    new_data.index.name = "t"
+
+    old_df1 = pd.DataFrame(
+        {"value": [2]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    old_df1.index.name = "t"
+
+    old_df2 = pd.DataFrame(
+        {"value": [3]},
+        index=pd.to_datetime(["2024-01-03"]),
+    )
+    old_df2.index.name = "t"
+
+    mock_read_csv.side_effect = [old_df1, old_df2]
+
+    merged_df, last_key = merge_raw_data("AAPL", MockS3(), new_data)
+
+    assert len(merged_df) == 3
+    assert merged_df.index.is_monotonic_increasing
+    assert last_key == "raw_old2.csv"
+
+
+@patch("stock_predictor.data_collector.pd.read_csv")
+def test_merge_raw_data_ignores_non_raw_files(mock_read_csv):
+    """
+    Test that non raw_ files are ignored.
+    :param mock_read_csv: Mocked pandas.read_csv function.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "processed.csv"},
+                    {"Key": "raw_valid.csv"},
+                ]
+            }
+
+        def get_object(self, Bucket, Key):
+            return {"Body": "fake_body"}
+
+    new_data = pd.DataFrame(
+        {"value": [1]},
+        index=pd.to_datetime(["2024-01-02"]),
+    )
+    new_data.index.name = "t"
+
+    old_df = pd.DataFrame(
+        {"value": [2]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    old_df.index.name = "t"
+
+    mock_read_csv.return_value = old_df
+
+    merged_df, last_key = merge_raw_data("AAPL", MockS3(), new_data)
+
+    assert len(merged_df) == 2
+    assert last_key == "raw_valid.csv"
+    mock_read_csv.assert_called_once()
+
+
+@patch("stock_predictor.data_collector.pd.read_csv")
+def test_merge_raw_data_removes_duplicates(mock_read_csv):
+    """
+    Test that duplicate timestamps are removed keeping the first occurrence.
+    :param mock_read_csv: Mocked pandas.read_csv function.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": [{"Key": "raw_dup.csv"}]}
+
+        def get_object(self, Bucket, Key):
+            return {"Body": "fake_body"}
+
+    new_data = pd.DataFrame(
+        {"value": [1]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    new_data.index.name = "t"
+
+    duplicate_df = pd.DataFrame(
+        {"value": [999]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    duplicate_df.index.name = "t"
+
+    mock_read_csv.return_value = duplicate_df
+
+    merged_df, _ = merge_raw_data("AAPL", MockS3(), new_data)
+
+    assert merged_df.loc["2024-01-01"]["value"] == 1
+    assert len(merged_df) == 1
+
+
+def test_merge_raw_data_no_raw_files():
+    """
+    Test that if there are no raw_ files, it returns the original dataframe.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": [{"Key": "processed.csv"}]}
+
+    new_data = pd.DataFrame(
+        {"value": [1]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    new_data.index.name = "t"
+
+    merged_df, last_key = merge_raw_data("AAPL", MockS3(), new_data)
+
+    assert merged_df.equals(new_data)
+    assert last_key == "processed.csv"
+
+
+def test_merge_raw_data_empty_bucket():
+    """
+    Test behavior when bucket is empty (detects potential bug).
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {}
+
+    new_data = pd.DataFrame(
+        {"value": [1]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    new_data.index.name = "t"
+
+    with pytest.raises(UnboundLocalError):
+        merge_raw_data("AAPL", MockS3(), new_data)
