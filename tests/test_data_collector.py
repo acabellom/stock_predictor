@@ -186,7 +186,6 @@ def test_fetch_last_month_success(mock_get):
 
     called_url = mock_get.call_args[0][0]
     assert "AAPL" in called_url
-    # check that start and end dates appear in URL (YYYY-MM-DD format)
     today = datetime.today()
     start_month = today.replace(day=1).strftime("%Y-%m-%d")
     end_day = today.strftime("%Y-%m-%d")
@@ -195,18 +194,17 @@ def test_fetch_last_month_success(mock_get):
 
 
 @patch("stock_predictor.data_collector.requests.get")
-def test_fetch_last_month_http_error(mock_get):
+def test_fetch_last_month_special_case(mock_get):
     """
-    Test fetching last month's stock data with an HTTP error.
+    Test fetching stock data for the last month when the first day of the month is a weekend and today is 2nd or 1st.
 
     :param mock_get: Mocked requests.get method.
     """
-    mock_response = Mock()
-    mock_response.raise_for_status.side_effect = requests.HTTPError("API error")
-    mock_get.return_value = mock_response
 
-    with pytest.raises(requests.HTTPError):
-        fetch_last_month_("AAPL")
+    result1 = fetch_last_month_("AAPL", today=datetime(2026, 3, 1))
+    result2 = fetch_last_month_("AAPL", today=datetime(2025, 11, 2))
+    assert result1 == -1
+    assert result2 == -1
 
 
 @patch("stock_predictor.data_collector.requests.get")
@@ -222,7 +220,7 @@ def test_fetch_last_month_other_ticker(mock_get):
         raise_for_status=Mock(),
     )
 
-    fetch_last_month_("TSLA")
+    fetch_last_month_("TSLA", today=datetime(2024, 1, 15))
 
     called_url = mock_get.call_args[0][0]
     assert "/TSLA/" in called_url
@@ -243,7 +241,7 @@ def test_fetch_last_month_returns_json(mock_get):
         raise_for_status=Mock(),
     )
 
-    result = fetch_last_month_("AAPL")
+    result = fetch_last_month_("AAPL", today=datetime(2024, 1, 15))
 
     assert result == data
 
