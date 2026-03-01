@@ -43,17 +43,19 @@ def fetch_stock_data_month(ticker: str, year: int, month: int) -> dict:
     return response.json()
 
 
-def fetch_last_2_years(ticker: str) -> list:
+def fetch_last_2_years(ticker: str, today: datetime = None) -> list:
     """
     Fetch historical stock data for the last 2 years by aggregating monthly data.
 
     Args:
         ticker (str): Stock ticker symbol (e.g., "AAPL")
+        today (datetime): The current date to use for calculations (default is today).
 
     Returns:
         list: List of all aggregated data for the last 2 years
     """
-    today = datetime.today()
+    if today is None:
+        today = datetime.today()
     start_date = today - timedelta(days=2 * 365)
 
     all_data = []
@@ -88,16 +90,17 @@ def fetch_last_2_years(ticker: str) -> list:
     return all_data
 
 
-def fetch_last_month_(ticker: str) -> dict:
+def fetch_last_month_(ticker: str, today: datetime = None) -> dict:
     """
     Fetch stock data for the last month up to today.
     Args:
         ticker (str): Stock ticker symbol.
+        today (datetime): The current date to use for calculations (default is today).
     Returns:
         dict: JSON response containing stock data for the last month.
     """
-
-    today = datetime.today()
+    if today is None:
+        today = datetime.today()
     start_month = today.replace(day=1)
     if (
         today.weekday() >= 5
