@@ -78,7 +78,10 @@ def fetch_last_2_years(ticker: str) -> list:
             month = 1
             year += 1
     try:
-        all_data.extend(fetch_last_month_(ticker)["results"])
+        data = fetch_last_month_(ticker)
+        if data == -1:
+            return all_data
+        all_data.extend(data["results"])
     except Exception as e:
         logger.error(f"Error fetching data for last month {ticker}: {e}")
 
@@ -96,6 +99,15 @@ def fetch_last_month_(ticker: str) -> dict:
 
     today = datetime.today()
     start_month = today.replace(day=1)
+    if (
+        today.weekday() >= 5
+        and (today - start_month).days < 3
+        and start_month.weekday() >= 5
+    ):
+        logger.warning(
+            "Today is weekend and the first day of the month was also weekend. Fetching data from the previous month to ensure we have data up to today."
+        )
+        return -1
     start_str = start_month.strftime("%Y-%m-%d")
     end_str = today.strftime("%Y-%m-%d")
 
