@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch, Mock
 from stock_predictor.data_collector import (
+    check_highest_date_in_s3,
     fetch_stock_data_month,
     fetch_last_2_years,
     fetch_last_month_,
@@ -779,3 +780,93 @@ def test_store_old_data_propagates_copy_error():
 
     with pytest.raises(Exception, match="S3 copy failed"):
         store_old_data(MockS3(), "AAPL", "file.csv")
+
+
+def test_check_highest_date_in_s3_multiple_raw_files_returns_last_found():
+    """
+    Test that when multiple raw_ files exist,
+    the function returns the date from the last iterated raw_ file.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "raw_data_20220101.csv"},
+                    {"Key": "raw_data_20231231.csv"},
+                ]
+            }
+
+    result = check_highest_date_in_s3("AAPL", MockS3())
+
+    # Returns last iterated raw_ file date (not actually highest)
+    assert result == "20231231"
+
+
+def test_check_highest_date_in_s3_ignores_non_raw_files():
+    """
+    Test that non raw_ files are ignored.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "processed.csv"},
+                    {"Key": "raw_data_20240101.csv"},
+                ]
+            }
+
+    result = check_highest_date_in_s3("AAPL", MockS3())
+
+    assert result == "20240101"
+
+
+def test_check_highest_date_in_s3_empty_bucket():
+    """
+    Test behavior when bucket is empty.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {}
+
+    result = check_highest_date_in_s3("AAPL", MockS3())
+
+    assert result == "00000000"
+
+
+def test_check_highest_date_in_s3_no_raw_files():
+    """
+    Test behavior when there are no raw_ files.
+    This exposes a bug in the current implementation.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "processed.csv"},
+                    {"Key": "another_file.txt"},
+                ]
+            }
+
+    with pytest.raises(UnboundLocalError):
+        check_highest_date_in_s3("AAPL", MockS3())
+
+
+def test_check_highest_date_in_s3_uses_lowercase_bucket():
+    """
+    Test that ticker is converted to lowercase when calling S3.
+    """
+
+    captured_bucket = {}
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            captured_bucket["value"] = Bucket
+            return {"Contents": []}
+
+    check_highest_date_in_s3("MsFt", MockS3())
+
+    assert captured_bucket["value"] == "msft"
