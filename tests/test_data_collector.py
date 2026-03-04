@@ -9,6 +9,7 @@ from stock_predictor.data_collector import (
     upload_to_s3,
     merge_raw_data,
     get_lowest_date_in_s3,
+    store_old_data,
 )
 import requests
 from datetime import datetime, timedelta
@@ -691,3 +692,90 @@ def test_get_lowest_date_in_s3_empty_bucket():
 
     result = get_lowest_date_in_s3("AAPL", MockS3())
     assert result == (datetime.now() - timedelta(days=730)).strftime("%Y%m%d")
+
+
+def test_store_old_data_skips_when_key_empty():
+    """
+    Test that when old_file_key is empty,
+    the function does not call S3 operations.
+    """
+
+    class MockS3:
+        def copy_object(self, **kwargs):
+            raise AssertionError("copy_object should not be called")
+
+        def delete_object(self, **kwargs):
+            raise AssertionError("delete_object should not be called")
+
+    # Should not raise
+    store_old_data(MockS3(), "AAPL", "")
+
+
+def test_store_old_data_archives_file_successfully():
+    """
+    Test that the file is copied to archive/ and then deleted.
+    """
+
+    calls = {}
+
+    class MockS3:
+        def copy_object(self, Bucket, CopySource, Key):
+            calls["copy"] = {
+                "Bucket": Bucket,
+                "CopySource": CopySource,
+                "Key": Key,
+            }
+
+        def delete_object(self, Bucket, Key):
+            calls["delete"] = {
+                "Bucket": Bucket,
+                "Key": Key,
+            }
+
+    store_old_data(MockS3(), "AAPL", "raw/data.csv")
+
+    assert calls["copy"]["Bucket"] == "aapl"
+    assert calls["copy"]["CopySource"] == {
+        "Bucket": "aapl",
+        "Key": "raw/data.csv",
+    }
+    assert calls["copy"]["Key"] == "archive/raw/data.csv"
+
+    assert calls["delete"]["Bucket"] == "aapl"
+    assert calls["delete"]["Key"] == "raw/data.csv"
+
+
+def test_store_old_data_uses_lowercase_bucket():
+    """
+    Test that ticker is always converted to lowercase for bucket name.
+    """
+
+    calls = {}
+
+    class MockS3:
+        def copy_object(self, Bucket, CopySource, Key):
+            calls["bucket"] = Bucket
+
+        def delete_object(self, Bucket, Key):
+            pass
+
+    store_old_data(MockS3(), "MsFt", "file.csv")
+
+    assert calls["bucket"] == "msft"
+
+
+def test_store_old_data_propagates_copy_error():
+    """
+    Test that if copy_object fails, the exception is propagated
+    and delete_object is not called.
+    """
+
+    class MockS3:
+        def copy_object(self, Bucket, CopySource, Key):
+            raise Exception("S3 copy failed")
+
+        def delete_object(self, Bucket, Key):
+            raise AssertionError("delete_object should not be called")
+
+    with pytest.raises(Exception, match="S3 copy failed"):
+        store_old_data(MockS3(), "AAPL", "file.csv")
