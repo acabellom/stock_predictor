@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, Mock
 from stock_predictor.data_collector import (
     check_highest_date_in_s3,
+    create_bucket_if_not_exists,
     fetch_stock_data_month,
     fetch_last_2_years,
     fetch_last_month_,
@@ -870,3 +871,83 @@ def test_check_highest_date_in_s3_uses_lowercase_bucket():
     check_highest_date_in_s3("MsFt", MockS3())
 
     assert captured_bucket["value"] == "msft"
+
+
+def test_create_bucket_if_not_exists_creates_bucket_when_missing():
+    """
+    Test that the bucket is created if it does not exist.
+    """
+
+    calls = {}
+
+    class MockS3:
+        def list_buckets(self):
+            return {
+                "Buckets": [
+                    {"Name": "existing-bucket"},
+                ]
+            }
+
+        def create_bucket(self, Bucket):
+            calls["created"] = Bucket
+
+    create_bucket_if_not_exists(MockS3(), "new-bucket")
+
+    assert calls["created"] == "new-bucket"
+
+
+def test_create_bucket_if_not_exists_does_not_create_if_exists():
+    """
+    Test that the bucket is not created if it already exists.
+    """
+
+    class MockS3:
+        def list_buckets(self):
+            return {
+                "Buckets": [
+                    {"Name": "existing-bucket"},
+                ]
+            }
+
+        def create_bucket(self, Bucket):
+            raise AssertionError("create_bucket should not be called")
+
+    create_bucket_if_not_exists(MockS3(), "existing-bucket")
+
+
+def test_create_bucket_if_not_exists_creates_when_no_buckets():
+    """
+    Test that the bucket is created when the account has no buckets.
+    """
+
+    calls = {}
+
+    class MockS3:
+        def list_buckets(self):
+            return {"Buckets": []}
+
+        def create_bucket(self, Bucket):
+            calls["created"] = Bucket
+
+    create_bucket_if_not_exists(MockS3(), "my-bucket")
+
+    assert calls["created"] == "my-bucket"
+
+
+def test_create_bucket_if_not_exists_handles_missing_buckets_key():
+    """
+    Test that the function works when 'Buckets' key is missing in response.
+    """
+
+    calls = {}
+
+    class MockS3:
+        def list_buckets(self):
+            return {}
+
+        def create_bucket(self, Bucket):
+            calls["created"] = Bucket
+
+    create_bucket_if_not_exists(MockS3(), "test-bucket")
+
+    assert calls["created"] == "test-bucket"
