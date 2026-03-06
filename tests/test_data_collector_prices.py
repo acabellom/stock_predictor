@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, Mock
-from stock_predictor.data_collector import (
+from stock_predictor.data_collector_prices import (
     check_highest_date_in_s3,
     create_bucket_if_not_exists,
     fetch_stock_data_month,
@@ -19,7 +19,7 @@ import pandas as pd
 import boto3
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_stock_data_month_success(mock_get):
     """
     Test fetching stock data for a specific month successfully.
@@ -53,7 +53,7 @@ def test_fetch_stock_data_month_success(mock_get):
     assert "2024-01-31" in called_url
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_stock_data_month_http_error(mock_get):
     """
     Test fetching stock data for a specific month with an HTTP error.
@@ -68,7 +68,7 @@ def test_fetch_stock_data_month_http_error(mock_get):
         fetch_stock_data_month("AAPL", 2024, 1)
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_stock_data_month_february(mock_get):
     """
     Test fetching stock data for February, ensuring correct date handling.
@@ -87,7 +87,7 @@ def test_fetch_stock_data_month_february(mock_get):
     assert "2023-02-28" in called_url
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_stock_data_month_leap_year(mock_get):
     """
     Test fetching stock data for February in a leap year.
@@ -105,10 +105,10 @@ def test_fetch_stock_data_month_leap_year(mock_get):
     assert "2024-02-29" in called_url
 
 
-@patch("stock_predictor.data_collector.sleep")
-@patch("stock_predictor.data_collector.fetch_last_month_")
-@patch("stock_predictor.data_collector.fetch_stock_data_month")
-@patch("stock_predictor.data_collector.datetime")
+@patch("stock_predictor.data_collector_prices.sleep")
+@patch("stock_predictor.data_collector_prices.fetch_last_month_")
+@patch("stock_predictor.data_collector_prices.fetch_stock_data_month")
+@patch("stock_predictor.data_collector_prices.datetime")
 def test_fetch_last_2_years_ok(
     mock_datetime, mock_fetch_month, mock_fetch_last_month, mock_sleep
 ):
@@ -140,9 +140,9 @@ def test_fetch_last_2_years_ok(
     mock_sleep.assert_called()
 
 
-@patch("stock_predictor.data_collector.sleep")
-@patch("stock_predictor.data_collector.fetch_last_month_")
-@patch("stock_predictor.data_collector.fetch_stock_data_month")
+@patch("stock_predictor.data_collector_prices.sleep")
+@patch("stock_predictor.data_collector_prices.fetch_last_month_")
+@patch("stock_predictor.data_collector_prices.fetch_stock_data_month")
 def test_fetch_last_2_years_handles_exception(
     mock_fetch_month, mock_fetch_last_month, mock_sleep
 ):
@@ -160,7 +160,7 @@ def test_fetch_last_2_years_handles_exception(
     assert data == []
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_last_month_success(mock_get):
     """
     Test fetching stock data for the last month successfully.
@@ -196,7 +196,7 @@ def test_fetch_last_month_success(mock_get):
     assert end_day in called_url
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_last_month_special_case(mock_get):
     """
     Test fetching stock data for the last month when the first day of the month is a weekend and today is 2nd or 1st.
@@ -210,7 +210,7 @@ def test_fetch_last_month_special_case(mock_get):
     assert result2 == -1
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_last_month_other_ticker(mock_get):
     """
     Test that the URL is correctly built for a different ticker symbol.
@@ -229,7 +229,7 @@ def test_fetch_last_month_other_ticker(mock_get):
     assert "/TSLA/" in called_url
 
 
-@patch("stock_predictor.data_collector.requests.get")
+@patch("stock_predictor.data_collector_prices.requests.get")
 def test_fetch_last_month_returns_json(mock_get):
     """
     Test that the function returns the JSON payload from the API.
@@ -448,7 +448,7 @@ def test_upload_to_s3_sends_csv_data():
     assert "1" in s3_client.body
 
 
-@patch("stock_predictor.data_collector.pd.read_csv")
+@patch("stock_predictor.data_collector_prices.pd.read_csv")
 def test_merge_raw_data_multiple_raw_files(mock_read_csv):
     """
     Test merging multiple raw_ files from S3 correctly.
@@ -493,7 +493,7 @@ def test_merge_raw_data_multiple_raw_files(mock_read_csv):
     assert last_key == "raw_old2.csv"
 
 
-@patch("stock_predictor.data_collector.pd.read_csv")
+@patch("stock_predictor.data_collector_prices.pd.read_csv")
 def test_merge_raw_data_ignores_non_raw_files(mock_read_csv):
     """
     Test that non raw_ files are ignored.
@@ -533,7 +533,7 @@ def test_merge_raw_data_ignores_non_raw_files(mock_read_csv):
     mock_read_csv.assert_called_once()
 
 
-@patch("stock_predictor.data_collector.pd.read_csv")
+@patch("stock_predictor.data_collector_prices.pd.read_csv")
 def test_merge_raw_data_removes_duplicates(mock_read_csv):
     """
     Test that duplicate timestamps are removed keeping the first occurrence.
