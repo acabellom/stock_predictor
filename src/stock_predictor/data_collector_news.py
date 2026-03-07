@@ -18,8 +18,10 @@ def fetch_news_data(ticker: str, date: datetime) -> dict:
     Returns:
         dict: JSON response containing news data for the specified ticker and date
     """
+    date_2_years_ago = date.replace(year=date.year - 2)
     date_str = date.strftime("%Y-%m-%d")
-    url = f"https://api.polygon.io/v2/reference/news?ticker={ticker}&published_utc.gte={date_str}T00:00:00Z&published_utc.lte={date_str}T23:59:59Z&apiKey={API_KEY}"
+    date_str_2_years_ago = date_2_years_ago.strftime("%Y-%m-%d")
+    url = f"https://api.polygon.io/v2/reference/news?ticker={ticker}&published_utc.gte={date_str_2_years_ago}T00:00:00Z&published_utc.lte={date_str}T23:59:59Z&apiKey={API_KEY}"
     response = requests.get(url)
     response.raise_for_status()
     return response.json()
@@ -36,11 +38,14 @@ def extract_headlines(news_data: dict) -> list:
         list: List of headlines
     """
     return [
-        f"{article['title']}: {article.get('description', '')}"
+        (
+            f"{article['title']}: {article.get('description', '')}",
+            article.get("published_utc", ""),
+        )
         for article in news_data.get("results", [])
     ]
 
 
 if __name__ == "__main__":
-    news_data = fetch_news_data("AAPL", datetime(2024, 6, 1))
+    news_data = fetch_news_data("AAPL", datetime.now())
     print(extract_headlines(news_data))
