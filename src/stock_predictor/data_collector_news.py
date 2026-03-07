@@ -25,5 +25,22 @@ def fetch_news_data(ticker: str, date: datetime) -> dict:
     return response.json()
 
 
+def extract_headlines(news_data: dict) -> list:
+    """
+    Extract headlines from the news data.
+
+    Args:
+        news_data (dict): JSON response containing news data
+
+    Returns:
+        list: List of headlines
+    """
+    return [
+        f"{article['title']}: {article.get('description', '')}"
+        for article in news_data.get("results", [])
+    ]
+
+
 if __name__ == "__main__":
-    print(fetch_news_data("AAPL", datetime(2024, 6, 1)))
+    news_data = fetch_news_data("AAPL", datetime(2024, 6, 1))
+    print(extract_headlines(news_data))
