@@ -57,9 +57,27 @@ def extract_headlines(news_data: dict) -> list:
     ]
 
 
+def clean_data(headlines: list) -> list:
+    """
+    Clean the headlines by removing any unwanted characters or formatting.
+
+    Args:
+        headlines (list): List of tuples containing headlines and their published dates
+
+    Returns:
+        list: Cleaned list of headlines
+    """
+    cleaned_headlines = []
+    for headline, published_utc in headlines:
+        cleaned_headline = headline.replace("\n", " ").strip()
+        cleaned_headlines.append((cleaned_headline, published_utc))
+    return cleaned_headlines
+
+
 if __name__ == "__main__":
     news_data = fetch_news_data("AAPL", datetime.now())
     df = extract_headlines(news_data)
+    df = clean_data(df)
     df = pd.DataFrame(df, columns=["headline", "published_utc"])
 
     df.to_csv("./data/aapl_news_test.csv", index=False, quoting=1)
