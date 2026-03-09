@@ -74,6 +74,19 @@ def clean_data(headlines: list) -> list:
     return cleaned_headlines
 
 
+def get_dataframe(headlines: list) -> pd.DataFrame:
+    """
+    Convert the list of headlines into a pandas DataFrame.
+
+    Args:
+        headlines (list): List of tuples containing headlines and their published dates
+
+    Returns:
+        pd.DataFrame: DataFrame with columns "headline" and "published_utc"
+    """
+    return pd.DataFrame(headlines, columns=["headline", "published_utc"])
+
+
 if __name__ == "__main__":
     news_data = fetch_news_data("AAPL", datetime.now())
     df = extract_headlines(news_data)
