@@ -4,6 +4,8 @@ from datetime import datetime
 import requests
 import pandas as pd
 from transformers import pipeline
+from stock_predictor.logger_config import logger
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -88,28 +90,67 @@ def get_dataframe(headlines: list) -> pd.DataFrame:
     return pd.DataFrame(headlines, columns=["headline", "published_utc"])
 
 
-def get_sentiment_analysis(df: pd.DataFrame) -> pd.DataFrame:
+def get_sentiment_analysis(
+    df: pd.DataFrame, path_to_model: str = "./models/finbert"
+) -> pd.DataFrame:
     """
     Perform sentiment analysis on the headlines using a pre-trained model.
 
     Args:
         df (pd.DataFrame): DataFrame containing headlines and their published dates
+        path_to_model (str): Path to the locally saved model
 
     Returns:
         pd.DataFrame: DataFrame with an additional column for sentiment labels
     """
+    df["headline"] = df["headline"].fillna("").astype(str)
     texts = df["headline"].str[:512].tolist()
     sentiment_analyzer = pipeline(
-        "sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True
+        "sentiment-analysis", model=path_to_model, tokenizer=path_to_model, top_k=None
     )
-    results = sentiment_analyzer(texts, batch_size=32)
-    df["positive"] = [r[0]["score"] for r in results]
-    df["neutral"] = [r[1]["score"] for r in results]
-    df["negative"] = [r[2]["score"] for r in results]
+    batch_size = 32
+    results = []
+    for i in tqdm(range(0, len(texts), batch_size), desc="Procesando en batch"):
+        batch = texts[i : i + batch_size]
+        batch_results = sentiment_analyzer(
+            batch, batch_size=batch_size, return_all_scores=True
+        )
+        results.extend(batch_results)
+    df["positive"] = 0.0
+    df["neutral"] = 0.0
+    df["negative"] = 0.0
+
+    for idx, r in enumerate(results):
+        for item in r:
+            label = item["label"].lower()
+            df.at[idx, label] = item["score"]
     return df
 
 
+def download_model_locally(
+    model_name: str = "ProsusAI/finbert", local_path: str = "./models/finbert"
+) -> None:
+    """
+    Download a pre-trained model from Hugging Face and save it locally.
+
+    Args:
+        model_name (str): The name of the model to download (e.g., "ProsusAI/finbert")
+        local_path (str): The local directory path where the model should be saved
+    """
+    if os.path.exists(local_path):
+        logger.info(f"Model already exists at {local_path}. Skipping download.")
+        return
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    model.save_pretrained(local_path)
+    tokenizer.save_pretrained(local_path)
+
+
 if __name__ == "__main__":
+    download_model_locally()
     news_data = fetch_news_data("AAPL", datetime.now())
     df = extract_headlines(news_data)
     df = clean_data(df)
