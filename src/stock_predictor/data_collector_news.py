@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import requests
 import pandas as pd
+from transformers import pipeline
 
 load_dotenv()
 
@@ -87,10 +88,32 @@ def get_dataframe(headlines: list) -> pd.DataFrame:
     return pd.DataFrame(headlines, columns=["headline", "published_utc"])
 
 
+def get_sentiment_analysis(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Perform sentiment analysis on the headlines using a pre-trained model.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing headlines and their published dates
+
+    Returns:
+        pd.DataFrame: DataFrame with an additional column for sentiment labels
+    """
+    texts = df["headline"].str[:512].tolist()
+    sentiment_analyzer = pipeline(
+        "sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True
+    )
+    results = sentiment_analyzer(texts, batch_size=32)
+    df["positive"] = [r[0]["score"] for r in results]
+    df["neutral"] = [r[1]["score"] for r in results]
+    df["negative"] = [r[2]["score"] for r in results]
+    return df
+
+
 if __name__ == "__main__":
     news_data = fetch_news_data("AAPL", datetime.now())
     df = extract_headlines(news_data)
     df = clean_data(df)
-    df = pd.DataFrame(df, columns=["headline", "published_utc"])
+    df = get_dataframe(df)
+    df = get_sentiment_analysis(df)
 
     df.to_csv("./data/aapl_news_test.csv", index=False, quoting=1)
