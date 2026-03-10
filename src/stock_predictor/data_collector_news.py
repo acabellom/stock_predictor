@@ -150,6 +150,29 @@ def download_model_locally(
     tokenizer.save_pretrained(local_path)
 
 
+def merge_prices_news(df_news: pd.DataFrame, df_prices: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merge the news DataFrame with the stock prices DataFrame based on the published date.
+
+    Args:
+        df_news (pd.DataFrame): DataFrame containing news headlines and their published dates
+        df_prices (pd.DataFrame): DataFrame containing stock prices with a datetime index
+
+    Returns:
+        pd.DataFrame: Merged DataFrame containing both news and stock price information
+    """
+    df_news["published_utc"] = pd.to_datetime(df_news["published_utc"])
+    df_news["published_utc"] = pd.to_datetime(df_news["published_utc"]).dt.tz_localize(
+        None
+    )
+    df_prices = df_prices.sort_values("t")
+    df_news = df_news.sort_values("published_utc")
+    merged_df = pd.merge_asof(
+        df_prices, df_news, left_on="t", right_on="published_utc", direction="backward"
+    )
+    return merged_df
+
+
 if __name__ == "__main__":
     download_model_locally()
     news_data = fetch_news_data("AAPL", datetime.now())
@@ -157,4 +180,8 @@ if __name__ == "__main__":
     df = clean_data(df)
     df = get_dataframe(df)
     df = get_sentiment_analysis(df)
+    df.to_csv("./data/aapl_news_test.csv", index=False, quoting=1)
+    df = merge_prices_news(
+        df, pd.read_csv("./data/AAPL_historical_data.csv", parse_dates=["t"])
+    )
     df.to_csv("./data/aapl_news_test.csv", index=False, quoting=1)
