@@ -124,6 +124,7 @@ def get_sentiment_analysis(
         for item in r:
             label = item["label"].lower()
             df.at[idx, label] = item["score"]
+    df["sentiment"] = df["positive"] - df["negative"]
     return df
 
 
@@ -156,5 +157,4 @@ if __name__ == "__main__":
     df = clean_data(df)
     df = get_dataframe(df)
     df = get_sentiment_analysis(df)
-
     df.to_csv("./data/aapl_news_test.csv", index=False, quoting=1)
