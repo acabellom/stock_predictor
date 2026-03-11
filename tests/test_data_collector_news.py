@@ -1,6 +1,10 @@
 import pytest
 from unittest.mock import patch, Mock
-from stock_predictor.data_collector_news import fetch_news_data, extract_headlines
+from stock_predictor.data_collector_news import (
+    fetch_news_data,
+    extract_headlines,
+    clean_data,
+)
 import requests
 from datetime import datetime
 
@@ -259,3 +263,91 @@ def test_extract_headlines_no_results_key():
     result = extract_headlines(news_data)
 
     assert result == []
+
+
+def test_clean_data_basic():
+    """
+    Test cleaning headlines with newline characters.
+    """
+
+    headlines = [
+        ("Apple releases new iPhone\nwith better battery", "2024-01-01"),
+    ]
+
+    result = clean_data(headlines)
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0][0] == "Apple releases new iPhone with better battery"
+    assert result[0][1] == "2024-01-01"
+
+
+def test_clean_data_strips_spaces():
+    """
+    Test that leading and trailing spaces are removed.
+    """
+
+    headlines = [
+        ("   Apple stock rises   ", "2024-01-02"),
+    ]
+
+    result = clean_data(headlines)
+
+    assert result[0][0] == "Apple stock rises"
+
+
+def test_clean_data_multiple_headlines():
+    """
+    Test cleaning multiple headlines correctly.
+    """
+
+    headlines = [
+        ("News 1\n", "2024-01-01"),
+        ("\nNews 2", "2024-01-02"),
+    ]
+
+    result = clean_data(headlines)
+
+    assert len(result) == 2
+    assert result[0][0] == "News 1"
+    assert result[1][0] == "News 2"
+
+
+def test_clean_data_preserves_dates():
+    """
+    Test that published dates remain unchanged.
+    """
+
+    headlines = [
+        ("Headline text\n", "2024-01-01T10:00:00Z"),
+    ]
+
+    result = clean_data(headlines)
+
+    assert result[0][1] == "2024-01-01T10:00:00Z"
+
+
+def test_clean_data_empty_list():
+    """
+    Test behavior when input list is empty.
+    """
+
+    headlines = []
+
+    result = clean_data(headlines)
+
+    assert result == []
+
+
+def test_clean_data_no_newlines():
+    """
+    Test behavior when headlines do not contain newline characters.
+    """
+
+    headlines = [
+        ("Apple earnings beat expectations", "2024-01-03"),
+    ]
+
+    result = clean_data(headlines)
+
+    assert result[0][0] == "Apple earnings beat expectations"
