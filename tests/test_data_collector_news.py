@@ -4,9 +4,11 @@ from stock_predictor.data_collector_news import (
     fetch_news_data,
     extract_headlines,
     clean_data,
+    get_dataframe,
 )
 import requests
 from datetime import datetime
+import pandas as pd
 
 
 @patch("stock_predictor.data_collector_news.requests.get")
@@ -351,3 +353,84 @@ def test_clean_data_no_newlines():
     result = clean_data(headlines)
 
     assert result[0][0] == "Apple earnings beat expectations"
+
+
+def test_get_dataframe_basic():
+    """
+    Test converting a list of headlines into a DataFrame.
+    """
+
+    headlines = [
+        ("Apple launches new product", "2024-01-01"),
+        ("Apple stock rises", "2024-01-02"),
+    ]
+
+    df = get_dataframe(headlines)
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == 2
+    assert list(df.columns) == ["headline", "published_utc"]
+
+    assert df.iloc[0]["headline"] == "Apple launches new product"
+    assert df.iloc[1]["published_utc"] == "2024-01-02"
+
+
+def test_get_dataframe_empty_list():
+    """
+    Test behavior when input list is empty.
+    """
+
+    headlines = []
+
+    df = get_dataframe(headlines)
+
+    assert isinstance(df, pd.DataFrame)
+    assert df.empty
+    assert list(df.columns) == ["headline", "published_utc"]
+
+
+def test_get_dataframe_single_row():
+    """
+    Test DataFrame creation when only one headline is provided.
+    """
+
+    headlines = [
+        ("Apple earnings beat expectations", "2024-01-03"),
+    ]
+
+    df = get_dataframe(headlines)
+
+    assert len(df) == 1
+    assert df.iloc[0]["headline"] == "Apple earnings beat expectations"
+    assert df.iloc[0]["published_utc"] == "2024-01-03"
+
+
+def test_get_dataframe_preserves_order():
+    """
+    Test that the order of headlines is preserved in the DataFrame.
+    """
+
+    headlines = [
+        ("News 1", "2024-01-01"),
+        ("News 2", "2024-01-02"),
+        ("News 3", "2024-01-03"),
+    ]
+
+    df = get_dataframe(headlines)
+
+    assert df["headline"].tolist() == ["News 1", "News 2", "News 3"]
+
+
+def test_get_dataframe_column_types():
+    """
+    Test that DataFrame columns contain the expected values.
+    """
+
+    headlines = [
+        ("Headline text", "2024-01-01T10:00:00Z"),
+    ]
+
+    df = get_dataframe(headlines)
+
+    assert "headline" in df.columns
+    assert "published_utc" in df.columns
