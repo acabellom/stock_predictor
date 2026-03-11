@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, Mock
-from stock_predictor.data_collector_news import fetch_news_data
+from stock_predictor.data_collector_news import fetch_news_data, extract_headlines
 import requests
 from datetime import datetime
 
@@ -140,3 +140,122 @@ def test_fetch_news_data_multiple_pages(mock_get):
     assert result["results"][2]["title"] == "News 3"
 
     assert mock_get.call_count == 3
+
+
+def test_extract_headlines_basic():
+    """
+    Test extracting headlines when news data contains title, description and published_utc.
+    """
+
+    news_data = {
+        "results": [
+            {
+                "title": "Apple launches new iPhone",
+                "description": "The new model improves battery life.",
+                "published_utc": "2024-01-01T10:00:00Z",
+            }
+        ]
+    }
+
+    result = extract_headlines(news_data)
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert (
+        result[0][0]
+        == "Apple launches new iPhone: The new model improves battery life."
+    )
+    assert result[0][1] == "2024-01-01T10:00:00Z"
+
+
+def test_extract_headlines_missing_description():
+    """
+    Test extracting headlines when description is missing.
+    """
+
+    news_data = {
+        "results": [
+            {
+                "title": "Apple stock rises",
+                "published_utc": "2024-01-02T12:00:00Z",
+            }
+        ]
+    }
+
+    result = extract_headlines(news_data)
+
+    assert len(result) == 1
+    assert result[0][0] == "Apple stock rises: "
+    assert result[0][1] == "2024-01-02T12:00:00Z"
+
+
+def test_extract_headlines_missing_published_date():
+    """
+    Test extracting headlines when published_utc is missing.
+    """
+
+    news_data = {
+        "results": [
+            {
+                "title": "Apple earnings report",
+                "description": "Revenue beats expectations",
+            }
+        ]
+    }
+
+    result = extract_headlines(news_data)
+
+    assert len(result) == 1
+    assert result[0][0] == "Apple earnings report: Revenue beats expectations"
+    assert result[0][1] == ""
+
+
+def test_extract_headlines_multiple_articles():
+    """
+    Test extracting multiple headlines correctly.
+    """
+
+    news_data = {
+        "results": [
+            {
+                "title": "News 1",
+                "description": "Desc 1",
+                "published_utc": "2024-01-01",
+            },
+            {
+                "title": "News 2",
+                "description": "Desc 2",
+                "published_utc": "2024-01-02",
+            },
+        ]
+    }
+
+    result = extract_headlines(news_data)
+
+    assert len(result) == 2
+    assert result[0][0] == "News 1: Desc 1"
+    assert result[1][0] == "News 2: Desc 2"
+
+
+def test_extract_headlines_empty_results():
+    """
+    Test behavior when results list is empty.
+    """
+
+    news_data = {"results": []}
+
+    result = extract_headlines(news_data)
+
+    assert result == []
+
+
+def test_extract_headlines_no_results_key():
+    """
+    Test behavior when results key does not exist.
+    """
+
+    news_data = {}
+
+    result = extract_headlines(news_data)
+
+    assert result == []
