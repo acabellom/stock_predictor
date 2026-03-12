@@ -5,6 +5,7 @@ from stock_predictor.data_collector_news import (
     extract_headlines,
     clean_data,
     get_dataframe,
+    get_sentiment_analysis,
 )
 import requests
 from datetime import datetime
@@ -434,3 +435,157 @@ def test_get_dataframe_column_types():
 
     assert "headline" in df.columns
     assert "published_utc" in df.columns
+
+
+@patch("stock_predictor.data_collector_news.tqdm", lambda x, **kwargs: x)
+@patch("stock_predictor.data_collector_news.pipeline")
+def test_get_sentiment_analysis_basic(mock_pipeline):
+    """
+    Test sentiment analysis producing correct positive/neutral/negative scores.
+    """
+
+    df = pd.DataFrame(
+        {
+            "headline": [
+                "Apple stock rises",
+                "Apple earnings disappoint investors",
+            ]
+        }
+    )
+
+    mock_model = Mock()
+
+    mock_model.return_value = [
+        [
+            {"label": "positive", "score": 0.8},
+            {"label": "neutral", "score": 0.1},
+            {"label": "negative", "score": 0.1},
+        ],
+        [
+            {"label": "positive", "score": 0.2},
+            {"label": "neutral", "score": 0.3},
+            {"label": "negative", "score": 0.5},
+        ],
+    ]
+
+    mock_pipeline.return_value = mock_model
+
+    result = get_sentiment_analysis(df)
+
+    assert isinstance(result, pd.DataFrame)
+
+    assert result.loc[0, "positive"] == 0.8
+    assert result.loc[0, "negative"] == 0.1
+    assert result.loc[0, "neutral"] == 0.1
+
+    assert result.loc[1, "positive"] == 0.2
+    assert result.loc[1, "negative"] == 0.5
+
+    assert result.loc[0, "sentiment"] == pytest.approx(0.7)
+    assert result.loc[1, "sentiment"] == pytest.approx(-0.3)
+
+
+@patch("stock_predictor.data_collector_news.tqdm", lambda x, **kwargs: x)
+@patch("stock_predictor.data_collector_news.pipeline")
+def test_get_sentiment_analysis_handles_nan(mock_pipeline):
+    """
+    Test that NaN headlines are converted to empty strings.
+    """
+
+    df = pd.DataFrame({"headline": [None]})
+
+    mock_model = Mock()
+
+    mock_model.return_value = [
+        [
+            {"label": "positive", "score": 0.5},
+            {"label": "neutral", "score": 0.4},
+            {"label": "negative", "score": 0.1},
+        ]
+    ]
+
+    mock_pipeline.return_value = mock_model
+
+    result = get_sentiment_analysis(df)
+
+    assert result["headline"].iloc[0] == ""
+    assert result["positive"].iloc[0] == 0.5
+
+
+@patch("stock_predictor.data_collector_news.tqdm", lambda x, **kwargs: x)
+@patch("stock_predictor.data_collector_news.pipeline")
+def test_get_sentiment_analysis_truncates_headline(mock_pipeline):
+    """
+    Test that headlines longer than 512 characters are truncated.
+    """
+
+    long_text = "A" * 600
+
+    df = pd.DataFrame({"headline": [long_text]})
+
+    mock_model = Mock()
+
+    mock_model.return_value = [
+        [
+            {"label": "positive", "score": 0.3},
+            {"label": "neutral", "score": 0.5},
+            {"label": "negative", "score": 0.2},
+        ]
+    ]
+
+    mock_pipeline.return_value = mock_model
+
+    get_sentiment_analysis(df)
+
+    called_batch = mock_model.call_args[0][0]
+
+    assert len(called_batch[0]) == 512
+
+
+@patch("stock_predictor.data_collector_news.tqdm", lambda x, **kwargs: x)
+@patch("stock_predictor.data_collector_news.pipeline")
+def test_get_sentiment_analysis_empty_dataframe(mock_pipeline):
+    """
+    Test behavior when dataframe is empty.
+    """
+
+    df = pd.DataFrame(columns=["headline"])
+
+    mock_model = Mock()
+    mock_model.return_value = []
+
+    mock_pipeline.return_value = mock_model
+
+    result = get_sentiment_analysis(df)
+
+    assert result.empty
+    assert "positive" in result.columns
+    assert "negative" in result.columns
+    assert "neutral" in result.columns
+    assert "sentiment" in result.columns
+
+
+@patch("stock_predictor.data_collector_news.tqdm", lambda x, **kwargs: x)
+@patch("stock_predictor.data_collector_news.pipeline")
+def test_get_sentiment_analysis_batching(mock_pipeline):
+    """
+    Test that batching works correctly with more than 32 headlines.
+    """
+
+    df = pd.DataFrame({"headline": [f"News {i}" for i in range(40)]})
+
+    mock_model = Mock()
+
+    mock_model.return_value = [
+        [
+            {"label": "positive", "score": 0.5},
+            {"label": "neutral", "score": 0.3},
+            {"label": "negative", "score": 0.2},
+        ]
+    ] * 32
+
+    mock_pipeline.return_value = mock_model
+
+    get_sentiment_analysis(df)
+
+    assert mock_model.call_count == 2
