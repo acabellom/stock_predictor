@@ -6,6 +6,7 @@ from stock_predictor.data_collector_news import (
     clean_data,
     get_dataframe,
     get_sentiment_analysis,
+    download_model_locally,
 )
 import requests
 from datetime import datetime
@@ -589,3 +590,47 @@ def test_get_sentiment_analysis_batching(mock_pipeline):
     get_sentiment_analysis(df)
 
     assert mock_model.call_count == 2
+
+
+@patch("os.path.exists")
+@patch("transformers.AutoTokenizer")
+@patch("transformers.AutoModelForSequenceClassification")
+def test_download_model_locally_downloads_and_saves(
+    mock_model_cls, mock_tokenizer_cls, mock_exists
+):
+    """
+    Test that download_model_locally downloads the model and tokenizer if they do not exist.
+    """
+    mock_exists.return_value = False
+
+    mock_model_instance = Mock()
+    mock_tokenizer_instance = Mock()
+    mock_model_cls.from_pretrained.return_value = mock_model_instance
+    mock_tokenizer_cls.from_pretrained.return_value = mock_tokenizer_instance
+
+    local_path = "./models/finbert_test"
+    download_model_locally(local_path=local_path)
+
+    mock_model_cls.from_pretrained.assert_called_once()
+    mock_tokenizer_cls.from_pretrained.assert_called_once()
+
+    mock_model_instance.save_pretrained.assert_called_once_with(local_path)
+    mock_tokenizer_instance.save_pretrained.assert_called_once_with(local_path)
+
+
+@patch("os.path.exists")
+@patch("transformers.AutoTokenizer")
+@patch("transformers.AutoModelForSequenceClassification")
+def test_download_model_locally_skips_if_exists(
+    mock_model_cls, mock_tokenizer_cls, mock_exists
+):
+    """
+    Test that download_model_locally does not download if the local path exists.
+    """
+    mock_exists.return_value = True
+
+    local_path = "./models/finbert_test"
+    download_model_locally(local_path=local_path)
+
+    mock_model_cls.from_pretrained.assert_not_called()
+    mock_tokenizer_cls.from_pretrained.assert_not_called()
