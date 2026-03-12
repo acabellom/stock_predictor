@@ -774,3 +774,43 @@ def test_merge_prices_news_empty_news():
 
     assert len(merged) == 1
     assert pd.isna(merged.loc[0, "headline"])
+
+
+def test_merge_prices_news_no_future_leakage():
+    """
+    Test that no future news is merged into past price rows.
+    Ensures merge_asof uses only previous news.
+    """
+
+    df_prices = pd.DataFrame(
+        {
+            "t": pd.to_datetime(
+                [
+                    "2024-01-01 10:00:00",
+                    "2024-01-01 11:00:00",
+                    "2024-01-01 12:00:00",
+                ]
+            ),
+            "price": [100, 101, 102],
+        }
+    )
+
+    df_news = pd.DataFrame(
+        {
+            "headline": [
+                "Future News 1",
+                "Future News 2",
+            ],
+            "published_utc": pd.to_datetime(
+                [
+                    "2024-01-01 13:00:00",
+                    "2024-01-01 14:00:00",
+                ]
+            ),
+        }
+    )
+
+    merged = merge_prices_news(df_news, df_prices)
+
+    # No price row should receive future news
+    assert merged["headline"].isna().all()
