@@ -11,3 +11,12 @@ services:
     volumes:
       - ./minio_data:/data
     command: server /data --console-address ":9001"
+  prefect:
+    image: prefecthq/prefect:3-python3.12
+    container_name: prefect-server
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./prefect_data:/root/.prefect
+    restart: unless-stopped
