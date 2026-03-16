@@ -143,7 +143,11 @@ def process_stock_data(data: dict) -> pd.DataFrame:
     """
     logger.info("Processing stock data...")
     df = pd.json_normalize(data)
-    df["t"] = pd.to_datetime(df["t"], unit="ms")
+    if pd.api.types.is_integer_dtype(df["t"]) or pd.api.types.is_float_dtype(df["t"]):
+        df["t"] = pd.to_datetime(df["t"], unit="ms", errors="coerce")
+    else:
+        df["t"] = pd.to_datetime(df["t"], errors="coerce")
+    df = df[~df["t"].isna()]
     df.set_index("t", inplace=True)
     df["average_price"] = (df["h"] + df["l"]) / 2
     logger.info("Stock data processed successfully.")
@@ -165,6 +169,10 @@ def merge_raw_data(
     """
     bucket_name = ticker.lower()
     merged_df = new_data.copy()
+    if "t" in merged_df.columns:
+        merged_df["t"] = pd.to_datetime(merged_df["t"])
+        merged_df.set_index("t", inplace=True)
+    merged_df.index = pd.to_datetime(merged_df.index)
     logger.info(f"Merging old raw data files from bucket {bucket_name}...")
     response = s3_client.list_objects_v2(Bucket=bucket_name)
     content = response.get("Contents", [])
@@ -176,9 +184,14 @@ def merge_raw_data(
         if file_key.startswith("raw_"):
             obj_response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
             df = pd.read_csv(obj_response["Body"], parse_dates=["t"], index_col="t")
+            df.index = pd.to_datetime(df.index, errors="coerce")
+            merged_df = merged_df[~merged_df.index.isna()]
+
             merged_df = pd.concat([merged_df, df])
-    logger.info(f"Merging completed: actual data and {file_key}")
+    merged_df = merged_df[~merged_df.index.isna()]
     merged_df = merged_df[~merged_df.index.duplicated(keep="first")]
+    merged_df.sort_index(inplace=True)
+    logger.info(f"Merging completed: actual data and {file_key}")
     merged_df.sort_index(inplace=True)
     return (merged_df, file_key)
 

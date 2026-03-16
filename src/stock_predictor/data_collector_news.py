@@ -161,14 +161,29 @@ def merge_prices_news(df_news: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Data
     Returns:
         pd.DataFrame: Merged DataFrame containing both news and stock price information
     """
-    df_news["published_utc"] = pd.to_datetime(df_news["published_utc"])
     df_news["published_utc"] = pd.to_datetime(df_news["published_utc"]).dt.tz_localize(
         None
     )
-    df_prices = df_prices.sort_values("t")
-    df_news = df_news.sort_values("published_utc")
+    df_news = df_news[~df_news["published_utc"].isna()]
+    df_news = df_news.groupby("published_utc", as_index=False).agg(
+        {
+            "headline": lambda x: " | ".join(x),
+            "positive": "mean",
+            "neutral": "mean",
+            "negative": "mean",
+            "sentiment": "mean",
+        }
+    )
+    if "t" not in df_prices.columns:
+        df_prices = df_prices.reset_index()
+    df_prices["t"] = pd.to_datetime(df_prices["t"])
+    df_prices = df_prices.drop_duplicates(subset=["t"], keep="last")
     merged_df = pd.merge_asof(
-        df_prices, df_news, left_on="t", right_on="published_utc", direction="backward"
+        df_prices.sort_values("t"),
+        df_news.sort_values("published_utc"),
+        left_on="t",
+        right_on="published_utc",
+        direction="backward",
     )
     return merged_df
 
