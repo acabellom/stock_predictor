@@ -2,12 +2,14 @@ import pytest
 import boto3
 from stock_predictor.utils import (
     create_s3_client,
+    get_latest_data_s3,
     upload_to_s3,
     get_lowest_date_in_s3,
     store_old_data,
     check_highest_date_in_s3,
     create_bucket_if_not_exists,
 )
+from io import StringIO
 import pandas as pd
 from datetime import datetime, timedelta
 
@@ -502,3 +504,156 @@ def test_create_bucket_if_not_exists_handles_missing_buckets_key():
     create_bucket_if_not_exists(MockS3(), "test-bucket")
 
     assert calls["created"] == "test-bucket"
+
+
+def test_get_latest_data_s3_returns_empty_dataframe_when_bucket_empty():
+    """
+    Test that an empty DataFrame is returned when the bucket has no contents.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {}
+
+    result = get_latest_data_s3(MockS3(), "test-bucket")
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
+
+
+def test_get_latest_data_s3_returns_empty_dataframe_when_no_contents_key():
+    """
+    Test that an empty DataFrame is returned when 'Contents' key is missing.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": []}
+
+    result = get_latest_data_s3(MockS3(), "test-bucket")
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
+
+
+def test_get_latest_data_s3_returns_dataframe_from_raw_file():
+    """
+    Test that the function reads the raw file and returns a valid DataFrame.
+    """
+    csv_content = "col1,col2\n1,2\n3,4"
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": [{"Key": "raw_20240101_data.csv"}]}
+
+        def get_object(self, Bucket, Key):
+            return {"Body": StringIO(csv_content)}
+
+    result = get_latest_data_s3(MockS3(), "test-bucket")
+
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == ["col1", "col2"]
+    assert len(result) == 2
+
+
+def test_get_latest_data_s3_ignores_non_raw_files():
+    """
+    Test that non-raw files are ignored and only raw files are considered.
+    """
+    csv_content = "a,b\n10,20"
+    captured = {}
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "processed_data.csv"},
+                    {"Key": "raw_20240101_data.csv"},
+                ]
+            }
+
+        def get_object(self, Bucket, Key):
+            captured["key"] = Key
+            return {"Body": StringIO(csv_content)}
+
+    get_latest_data_s3(MockS3(), "test-bucket")
+
+    assert captured["key"] == "raw_20240101_data.csv"
+
+
+def test_get_latest_data_s3_uses_first_raw_file():
+    """
+    Test that the function uses the first raw file found in the list.
+    """
+    csv_content = "x\n1"
+    captured = {}
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {
+                "Contents": [
+                    {"Key": "raw_20220101_data.csv"},
+                    {"Key": "raw_20231231_data.csv"},
+                ]
+            }
+
+        def get_object(self, Bucket, Key):
+            captured["key"] = Key
+            return {"Body": StringIO(csv_content)}
+
+    get_latest_data_s3(MockS3(), "test-bucket")
+
+    assert captured["key"] == "raw_20220101_data.csv"
+
+
+def test_get_latest_data_s3_raises_when_no_raw_files():
+    """
+    Test that an IndexError is raised when there are no raw files.
+    This exposes a bug in the current implementation.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": [{"Key": "processed_data.csv"}]}
+
+        def get_object(self, Bucket, Key):
+            raise AssertionError("get_object should not be called")
+
+    with pytest.raises(IndexError):
+        get_latest_data_s3(MockS3(), "test-bucket")
+
+
+def test_get_latest_data_s3_passes_correct_bucket_to_get_object():
+    """
+    Test that the correct bucket name is passed to get_object.
+    """
+    csv_content = "col\n1"
+    captured = {}
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": [{"Key": "raw_file.csv"}]}
+
+        def get_object(self, Bucket, Key):
+            captured["bucket"] = Bucket
+            return {"Body": StringIO(csv_content)}
+
+    get_latest_data_s3(MockS3(), "my-special-bucket")
+
+    assert captured["bucket"] == "my-special-bucket"
+
+
+def test_get_latest_data_s3_propagates_get_object_error():
+    """
+    Test that if get_object raises, the exception propagates up.
+    """
+
+    class MockS3:
+        def list_objects_v2(self, Bucket):
+            return {"Contents": [{"Key": "raw_data.csv"}]}
+
+        def get_object(self, Bucket, Key):
+            raise Exception("S3 read failed")
+
+    with pytest.raises(Exception, match="S3 read failed"):
+        get_latest_data_s3(MockS3(), "test-bucket")
