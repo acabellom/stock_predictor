@@ -142,3 +142,26 @@ def upload_to_s3(s3_client, bucket_name: str, file_name: str, data: pd.DataFrame
     csv_buffer = data.to_csv(index=True)
     s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=csv_buffer)
     logger.info(f"Uploaded {file_name} to bucket {bucket_name}.")
+
+
+def get_latest_data_s3(s3_client, bucket_name: str):
+    """
+    Get the latest raw data file from an S3 bucket and return it as a DataFrame.
+
+    Args:
+        s3_client (boto3.client): S3 client.
+        bucket_name (str): Name of the S3 bucket.
+    Returns:
+        pd.DataFrame: DataFrame containing the latest raw data from S3.
+    """
+    logger.info(f"Getting latest data from S3 bucket {bucket_name}...")
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    content = response.get("Contents", [])
+    if content == []:
+        logger.info("No files found in S3 bucket. Returning empty DataFrame.")
+        return pd.DataFrame()
+    latest_file = [obj["Key"] for obj in content if obj["Key"].startswith("raw")]
+    obj = s3_client.get_object(Bucket=bucket_name, Key=latest_file[0])
+    df = pd.read_csv(obj["Body"])
+    logger.info(f"Latest data file {latest_file} loaded successfully.")
+    return df
