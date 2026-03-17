@@ -637,38 +637,55 @@ def test_download_model_locally_skips_if_exists(
     mock_tokenizer_cls.from_pretrained.assert_not_called()
 
 
+def _make_news(headlines, dates, sentiments=None):
+    """Helper to build a news DataFrame with required sentiment columns."""
+    n = len(headlines)
+    if sentiments is None:
+        sentiments = [
+            {"positive": 0.5, "neutral": 0.3, "negative": 0.2, "sentiment": 0.3}
+        ] * n
+    return pd.DataFrame(
+        {
+            "headline": headlines,
+            "published_utc": pd.to_datetime(dates),
+            "positive": [s["positive"] for s in sentiments],
+            "neutral": [s["neutral"] for s in sentiments],
+            "negative": [s["negative"] for s in sentiments],
+            "sentiment": [s["sentiment"] for s in sentiments],
+        }
+    )
+
+
+def _make_prices(times, prices=None):
+    """Helper to build a prices DataFrame."""
+    n = len(times)
+    return pd.DataFrame(
+        {
+            "t": pd.to_datetime(times),
+            "price": prices or [100 + i for i in range(n)],
+        }
+    )
+
+
 def test_merge_prices_news_basic():
     """
     Test merging news with price data using the most recent previous news.
     """
-
-    df_prices = pd.DataFrame(
-        {
-            "t": pd.to_datetime(
-                [
-                    "2024-01-01 10:00:00",
-                    "2024-01-01 11:00:00",
-                    "2024-01-01 12:00:00",
-                ]
-            ),
-            "price": [100, 101, 102],
-        }
+    df_prices = _make_prices(
+        [
+            "2024-01-01 10:00:00",
+            "2024-01-01 11:00:00",
+            "2024-01-01 12:00:00",
+        ]
     )
-
-    df_news = pd.DataFrame(
-        {
-            "headline": ["News A", "News B"],
-            "published_utc": [
-                "2024-01-01 09:30:00",
-                "2024-01-01 11:30:00",
-            ],
-        }
+    df_news = _make_news(
+        ["News A", "News B"],
+        ["2024-01-01 09:30:00", "2024-01-01 11:30:00"],
     )
 
     merged = merge_prices_news(df_news, df_prices)
 
     assert len(merged) == 3
-
     assert merged.loc[0, "headline"] == "News A"
     assert merged.loc[1, "headline"] == "News A"
     assert merged.loc[2, "headline"] == "News B"
@@ -678,20 +695,8 @@ def test_merge_prices_news_no_previous_news():
     """
     Test that rows receive NaN when no earlier news exists.
     """
-
-    df_prices = pd.DataFrame(
-        {
-            "t": pd.to_datetime(["2024-01-01 09:00:00"]),
-            "price": [100],
-        }
-    )
-
-    df_news = pd.DataFrame(
-        {
-            "headline": ["Later News"],
-            "published_utc": ["2024-01-01 10:00:00"],
-        }
-    )
+    df_prices = _make_prices(["2024-01-01 09:00:00"])
+    df_news = _make_news(["Later News"], ["2024-01-01 10:00:00"])
 
     merged = merge_prices_news(df_news, df_prices)
 
@@ -702,28 +707,17 @@ def test_merge_prices_news_unsorted_inputs():
     """
     Test that the function works even if inputs are not sorted.
     """
-
-    df_prices = pd.DataFrame(
-        {
-            "t": pd.to_datetime(
-                [
-                    "2024-01-01 12:00:00",
-                    "2024-01-01 10:00:00",
-                    "2024-01-01 11:00:00",
-                ]
-            ),
-            "price": [102, 100, 101],
-        }
+    df_prices = _make_prices(
+        [
+            "2024-01-01 12:00:00",
+            "2024-01-01 10:00:00",
+            "2024-01-01 11:00:00",
+        ],
+        [102, 100, 101],
     )
-
-    df_news = pd.DataFrame(
-        {
-            "headline": ["News B", "News A"],
-            "published_utc": [
-                "2024-01-01 11:30:00",
-                "2024-01-01 09:30:00",
-            ],
-        }
+    df_news = _make_news(
+        ["News B", "News A"],
+        ["2024-01-01 11:30:00", "2024-01-01 09:30:00"],
     )
 
     merged = merge_prices_news(df_news, df_prices)
@@ -734,22 +728,10 @@ def test_merge_prices_news_unsorted_inputs():
 
 def test_merge_prices_news_timezone_removed():
     """
-    Test that timezone-aware datetimes are converted correctly.
+    Test that timezone-aware datetimes in news are stripped and merged correctly.
     """
-
-    df_prices = pd.DataFrame(
-        {
-            "t": pd.to_datetime(["2024-01-01 10:00:00"]),
-            "price": [100],
-        }
-    )
-
-    df_news = pd.DataFrame(
-        {
-            "headline": ["News A"],
-            "published_utc": pd.to_datetime(["2024-01-01 09:30:00"], utc=True),
-        }
-    )
+    df_prices = _make_prices(["2024-01-01 10:00:00"])
+    df_news = _make_news(["News A"], [pd.Timestamp("2024-01-01 09:30:00", tz="UTC")])
 
     merged = merge_prices_news(df_news, df_prices)
 
@@ -760,15 +742,17 @@ def test_merge_prices_news_empty_news():
     """
     Test merging when there are no news records.
     """
-
-    df_prices = pd.DataFrame(
-        {
-            "t": pd.to_datetime(["2024-01-01 10:00:00"]),
-            "price": [100],
-        }
+    df_prices = _make_prices(["2024-01-01 10:00:00"])
+    df_news = pd.DataFrame(
+        columns=[
+            "headline",
+            "published_utc",
+            "positive",
+            "neutral",
+            "negative",
+            "sentiment",
+        ]
     )
-
-    df_news = pd.DataFrame(columns=["headline", "published_utc"])
 
     merged = merge_prices_news(df_news, df_prices)
 
@@ -779,38 +763,106 @@ def test_merge_prices_news_empty_news():
 def test_merge_prices_news_no_future_leakage():
     """
     Test that no future news is merged into past price rows.
-    Ensures merge_asof uses only previous news.
     """
-
-    df_prices = pd.DataFrame(
-        {
-            "t": pd.to_datetime(
-                [
-                    "2024-01-01 10:00:00",
-                    "2024-01-01 11:00:00",
-                    "2024-01-01 12:00:00",
-                ]
-            ),
-            "price": [100, 101, 102],
-        }
+    df_prices = _make_prices(
+        [
+            "2024-01-01 10:00:00",
+            "2024-01-01 11:00:00",
+            "2024-01-01 12:00:00",
+        ]
     )
-
-    df_news = pd.DataFrame(
-        {
-            "headline": [
-                "Future News 1",
-                "Future News 2",
-            ],
-            "published_utc": pd.to_datetime(
-                [
-                    "2024-01-01 13:00:00",
-                    "2024-01-01 14:00:00",
-                ]
-            ),
-        }
+    df_news = _make_news(
+        ["Future News 1", "Future News 2"],
+        ["2024-01-01 13:00:00", "2024-01-01 14:00:00"],
     )
 
     merged = merge_prices_news(df_news, df_prices)
 
-    # No price row should receive future news
     assert merged["headline"].isna().all()
+
+
+def test_merge_prices_news_groups_headlines_same_timestamp():
+    """
+    Test that multiple headlines at the same timestamp are joined with ' | '.
+    """
+    df_prices = _make_prices(["2024-01-01 11:00:00"])
+    df_news = _make_news(
+        ["News A", "News B"],
+        ["2024-01-01 09:00:00", "2024-01-01 09:00:00"],
+    )
+
+    merged = merge_prices_news(df_news, df_prices)
+
+    assert "News A" in merged.loc[0, "headline"]
+    assert "News B" in merged.loc[0, "headline"]
+    assert "|" in merged.loc[0, "headline"]
+
+
+def test_merge_prices_news_averages_sentiment_same_timestamp():
+    """
+    Test that sentiment scores are averaged when multiple news share the same timestamp.
+    """
+    df_prices = _make_prices(["2024-01-01 11:00:00"])
+    df_news = _make_news(
+        ["News A", "News B"],
+        ["2024-01-01 09:00:00", "2024-01-01 09:00:00"],
+        sentiments=[
+            {"positive": 0.8, "neutral": 0.1, "negative": 0.1, "sentiment": 0.7},
+            {"positive": 0.2, "neutral": 0.3, "negative": 0.5, "sentiment": -0.3},
+        ],
+    )
+
+    merged = merge_prices_news(df_news, df_prices)
+
+    assert merged.loc[0, "positive"] == pytest.approx(0.5)
+    assert merged.loc[0, "sentiment"] == pytest.approx(0.2)
+
+
+def test_merge_prices_news_drops_null_published_utc():
+    """
+    Test that rows with NaT published_utc are dropped before merging.
+    """
+    df_prices = _make_prices(["2024-01-01 11:00:00"])
+    df_news = _make_news(
+        ["Valid News", "Invalid News"],
+        ["2024-01-01 09:00:00", pd.NaT],
+    )
+
+    merged = merge_prices_news(df_news, df_prices)
+
+    assert merged.loc[0, "headline"] == "Valid News"
+
+
+def test_merge_prices_news_prices_with_datetime_index():
+    """
+    Test that prices DataFrame with a datetime index is handled via reset_index.
+    """
+    df_prices = pd.DataFrame(
+        {"price": [100]},
+        index=pd.to_datetime(["2024-01-01 11:00:00"]),
+    )
+    df_prices.index.name = "t"
+    df_news = _make_news(["News A"], ["2024-01-01 09:00:00"])
+
+    merged = merge_prices_news(df_news, df_prices)
+
+    assert len(merged) == 1
+    assert merged.loc[0, "headline"] == "News A"
+
+
+def test_merge_prices_news_deduplicates_price_timestamps():
+    """
+    Test that duplicate timestamps in prices are deduplicated, keeping the last.
+    """
+    df_prices = pd.DataFrame(
+        {
+            "t": pd.to_datetime(["2024-01-01 11:00:00", "2024-01-01 11:00:00"]),
+            "price": [100, 999],
+        }
+    )
+    df_news = _make_news(["News A"], ["2024-01-01 09:00:00"])
+
+    merged = merge_prices_news(df_news, df_prices)
+
+    assert len(merged) == 1
+    assert merged.loc[0, "price"] == 999
