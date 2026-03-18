@@ -540,7 +540,7 @@ def test_get_latest_data_s3_returns_dataframe_from_raw_file():
     """
     Test that the function reads the raw file and returns a valid DataFrame.
     """
-    csv_content = "col1,col2\n1,2\n3,4"
+    csv_content = "timestamp,col1,col2\n2024-01-01,1,2\n2024-01-02,3,4"
 
     class MockS3:
         def list_objects_v2(self, Bucket):
