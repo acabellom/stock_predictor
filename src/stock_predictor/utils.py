@@ -154,14 +154,14 @@ def get_latest_data_s3(s3_client, bucket_name: str):
     Returns:
         pd.DataFrame: DataFrame containing the latest raw data from S3.
     """
-    logger.info(f"Getting latest data from S3 bucket {bucket_name}...")
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    logger.info(f"Getting latest data from S3 bucket {bucket_name.lower()}...")
+    response = s3_client.list_objects_v2(Bucket=bucket_name.lower())
     content = response.get("Contents", [])
     if content == []:
         logger.info("No files found in S3 bucket. Returning empty DataFrame.")
         return pd.DataFrame()
     latest_file = [obj["Key"] for obj in content if obj["Key"].startswith("raw")]
-    obj = s3_client.get_object(Bucket=bucket_name, Key=latest_file[0])
+    obj = s3_client.get_object(Bucket=bucket_name.lower(), Key=latest_file[0])
     df = pd.read_csv(obj["Body"])
     logger.info(f"Latest data file {latest_file} loaded successfully.")
     return df
