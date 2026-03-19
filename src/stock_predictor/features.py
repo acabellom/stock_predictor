@@ -26,8 +26,24 @@ def drop_useless_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_lag_data(df: pd.DataFrame, lag_list: list = [1, 2, 3, 5, 10]) -> pd.DataFrame:
+    """
+    Add lagged features to the DataFrame.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame
+        lag_list (list): List of lagged periods to add
+    Returns:
+        pd.DataFrame: DataFrame with lagged features added
+    """
+    for lag in lag_list:
+        df[f"c{lag}"] = df["c"].shift(lag)
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
     df = drop_useless_columns(df)
+    df = add_lag_data(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)
