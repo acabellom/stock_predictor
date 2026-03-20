@@ -54,6 +54,19 @@ def add_change_new_flag(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_target(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add a target variable to the DataFrame indicating the next period close price.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame
+    Returns:
+        pd.DataFrame: DataFrame with the target variable added
+    """
+    df["target"] = df["c"].shift(-1)
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
