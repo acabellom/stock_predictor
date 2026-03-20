@@ -41,9 +41,23 @@ def add_lag_data(df: pd.DataFrame, lag_list: list = [1, 2, 3, 5, 10]) -> pd.Data
     return df
 
 
+def add_change_new_flag(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add a flag to indicate if the latest new has changed compared to the previous period.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame
+    Returns:
+        pd.DataFrame: DataFrame with the change flag added
+    """
+    df["change_new_flag"] = (df["headline"] != df["headline"].shift(1)).astype(int)
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
+    df = add_change_new_flag(df)
     df = drop_useless_columns(df)
     df = add_lag_data(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)
