@@ -80,6 +80,19 @@ def fill_missing_news(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def drop_na_values(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop rows with NA values from the DataFrame.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame
+    Returns:
+        pd.DataFrame: DataFrame with NA values dropped
+    """
+    df = df.dropna()
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
@@ -88,4 +101,5 @@ if __name__ == "__main__":
     df = add_lag_data(df)
     df = add_target(df)
     df = fill_missing_news(df)
+    df = drop_na_values(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)
