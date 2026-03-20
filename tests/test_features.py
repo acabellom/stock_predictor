@@ -6,6 +6,7 @@ from stock_predictor.features import (
     add_change_new_flag,
     add_target,
     fill_missing_news,
+    drop_na_values,
 )
 
 
@@ -176,3 +177,30 @@ def test_fill_missing_news_non_null_values_unchanged():
     df = make_df()
     result = fill_missing_news(df)
     assert result["sentiment"].iloc[0] == 0.4
+
+
+def test_drop_na_values_no_nulls_after_drop():
+    df = make_df()
+    df = add_lag_data(df)
+    df = add_target(df)
+    result = drop_na_values(df)
+    assert result.isnull().sum().sum() == 0
+
+
+def test_drop_na_values_removes_first_rows_from_lags():
+    df = make_df()
+    df = add_lag_data(df, lag_list=[1, 2, 3, 5, 10])
+    result = drop_na_values(df)
+    assert result.index[0] == df.index[10]
+
+
+def test_drop_na_values_removes_last_row_from_target():
+    df = make_df()
+    df = add_target(df)
+    result = drop_na_values(df)
+    assert result.index[-1] != df.index[-1]
+
+
+def test_drop_na_values_returns_dataframe():
+    df = make_df()
+    assert isinstance(drop_na_values(df), pd.DataFrame)
