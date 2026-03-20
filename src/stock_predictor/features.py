@@ -67,10 +67,25 @@ def add_target(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def fill_missing_news(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fill missing news headlines with the last available headline.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame
+    Returns:
+        pd.DataFrame: DataFrame with missing news filled
+    """
+    df["sentiment"] = df["sentiment"].fillna(0.0)
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
     df = add_change_new_flag(df)
     df = drop_useless_columns(df)
     df = add_lag_data(df)
+    df = add_target(df)
+    df = fill_missing_news(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)
