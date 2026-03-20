@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from stock_predictor.features import (
     drop_useless_columns,
+    add_lag_data,
 )
 
 
@@ -66,3 +67,37 @@ def test_drop_useless_columns_does_not_raise_if_column_missing():
 def test_drop_useless_columns_returns_dataframe():
     df = make_df()
     assert isinstance(drop_useless_columns(df), pd.DataFrame)
+
+
+def test_add_lag_data_adds_default_lag_columns():
+    df = make_df()
+    result = add_lag_data(df)
+    for lag in [1, 2, 3, 5, 10]:
+        assert f"c{lag}" in result.columns
+
+
+def test_add_lag_data_lag1_is_previous_close():
+    df = make_df()
+    result = add_lag_data(df)
+    assert result["c1"].iloc[1] == df["c"].iloc[0]
+
+
+def test_add_lag_data_lag1_first_row_is_nan():
+    df = make_df()
+    result = add_lag_data(df)
+    assert pd.isna(result["c1"].iloc[0])
+
+
+def test_add_lag_data_custom_lag_list():
+    df = make_df()
+    result = add_lag_data(df, lag_list=[2, 4])
+    assert "c2" in result.columns
+    assert "c4" in result.columns
+    assert "c1" not in result.columns
+
+
+def test_add_lag_data_does_not_modify_original_close():
+    df = make_df()
+    original_close = df["c"].copy()
+    add_lag_data(df)
+    pd.testing.assert_series_equal(df["c"], original_close)
