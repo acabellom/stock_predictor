@@ -3,6 +3,7 @@ import numpy as np
 from stock_predictor.features import (
     drop_useless_columns,
     add_lag_data,
+    add_change_new_flag,
 )
 
 
@@ -101,3 +102,33 @@ def test_add_lag_data_does_not_modify_original_close():
     original_close = df["c"].copy()
     add_lag_data(df)
     pd.testing.assert_series_equal(df["c"], original_close)
+
+
+def test_add_change_new_flag_adds_column():
+    df = make_df()
+    result = add_change_new_flag(df)
+    assert "change_new_flag" in result.columns
+
+
+def test_add_change_new_flag_is_1_when_headline_changes():
+    df = make_df()
+    result = add_change_new_flag(df)
+    assert result["change_new_flag"].iloc[5] == 1
+
+
+def test_add_change_new_flag_is_0_when_headline_stays_same():
+    df = make_df()
+    result = add_change_new_flag(df)
+    assert result["change_new_flag"].iloc[2] == 0
+
+
+def test_add_change_new_flag_is_integer():
+    df = make_df()
+    result = add_change_new_flag(df)
+    assert result["change_new_flag"].dtype in [int, np.int32, np.int64]
+
+
+def test_add_change_new_flag_first_row_is_1():
+    df = make_df()
+    result = add_change_new_flag(df)
+    assert result["change_new_flag"].iloc[0] == 1
