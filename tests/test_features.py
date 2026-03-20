@@ -4,6 +4,7 @@ from stock_predictor.features import (
     drop_useless_columns,
     add_lag_data,
     add_change_new_flag,
+    add_target,
 )
 
 
@@ -132,3 +133,27 @@ def test_add_change_new_flag_first_row_is_1():
     df = make_df()
     result = add_change_new_flag(df)
     assert result["change_new_flag"].iloc[0] == 1
+
+
+def test_add_target_adds_column():
+    df = make_df()
+    result = add_target(df)
+    assert "target" in result.columns
+
+
+def test_add_target_is_next_close():
+    df = make_df()
+    result = add_target(df)
+    assert result["target"].iloc[0] == df["c"].iloc[1]
+
+
+def test_add_target_last_row_is_nan():
+    df = make_df()
+    result = add_target(df)
+    assert pd.isna(result["target"].iloc[-1])
+
+
+def test_add_target_is_float():
+    df = make_df()
+    result = add_target(df)
+    assert result["target"].dtype == float
