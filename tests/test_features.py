@@ -5,6 +5,7 @@ from stock_predictor.features import (
     add_lag_data,
     add_change_new_flag,
     add_target,
+    fill_missing_news,
 )
 
 
@@ -157,3 +158,21 @@ def test_add_target_is_float():
     df = make_df()
     result = add_target(df)
     assert result["target"].dtype == float
+
+
+def test_fill_missing_news_no_nulls_after_fill():
+    df = make_df()
+    result = fill_missing_news(df)
+    assert result["sentiment"].isnull().sum() == 0
+
+
+def test_fill_missing_news_nulls_filled_with_zero():
+    df = make_df()
+    result = fill_missing_news(df)
+    assert (result["sentiment"].iloc[5:10] == 0.0).all()
+
+
+def test_fill_missing_news_non_null_values_unchanged():
+    df = make_df()
+    result = fill_missing_news(df)
+    assert result["sentiment"].iloc[0] == 0.4
