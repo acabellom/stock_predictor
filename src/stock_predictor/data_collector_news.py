@@ -129,7 +129,7 @@ def get_sentiment_analysis(
 
 
 def download_model_locally(
-    model_name: str = "ProsusAI/finbert", local_path: str = "./models/finbert"
+    model_name: str = "ProsusAI/finbert", local_path: str = "./.models/finbert"
 ) -> None:
     """
     Download a pre-trained model from Hugging Face and save it locally.

@@ -3,5 +3,5 @@
 __pycache__/
 minio_data
 .vscode
-models
+.models
 prefect_data
