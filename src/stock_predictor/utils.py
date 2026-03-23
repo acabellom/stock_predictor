@@ -160,7 +160,10 @@ def get_latest_data_s3(s3_client, bucket_name: str):
     if content == []:
         logger.info("No files found in S3 bucket. Returning empty DataFrame.")
         return pd.DataFrame()
-    latest_file = [obj["Key"] for obj in content if obj["Key"].startswith("raw")]
+    if bucket_name.lower().endswith("-features"):
+        latest_file = [obj["Key"] for obj in content if obj["Key"].endswith(".csv")]
+    else:
+        latest_file = [obj["Key"] for obj in content if obj["Key"].startswith("raw")]
     obj = s3_client.get_object(Bucket=bucket_name.lower(), Key=latest_file[0])
     df = pd.read_csv(obj["Body"], index_col=0, parse_dates=True)
     logger.info(f"Latest data file {latest_file} loaded successfully.")
