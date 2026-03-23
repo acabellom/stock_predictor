@@ -143,7 +143,9 @@ if __name__ == "__main__":
         print(f"  train: {X.index[train_idx[0]]} → {X.index[train_idx[-1]]}")
         print(f"  val:   {X.index[val_idx[0]]} → {X.index[val_idx[-1]]}")
 
-    model = LGBMModel(n_estimators=100, max_depth=3, num_leaves=15, learning_rate=0.01)
+    model = LGBMModel(
+        n_estimators=559, max_depth=3, num_leaves=3, learning_rate=0.0177958
+    )
     metrics = train_model(
         model=model,
         df=df,
