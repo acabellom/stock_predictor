@@ -2,6 +2,7 @@ import pandas as pd
 import mlflow
 from stock_predictor.models.base import BaseModel
 from sklearn.model_selection import TimeSeriesSplit
+import os
 
 
 FEATURE_COLS = [
@@ -58,6 +59,7 @@ def train_model(
     Returns:
         dict: A dictionary containing the average performance metrics across all splits
     """
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
     mlflow.set_experiment(experiment_name)
 
     X = df[FEATURE_COLS]
