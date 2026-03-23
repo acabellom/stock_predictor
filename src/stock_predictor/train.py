@@ -20,8 +20,25 @@ FEATURE_COLS = [
 TARGET_COL = "target"
 
 
-def evaluate():
-    pass
+def evaluate(y_true: pd.Series, y_pred: pd.Series) -> dict:
+    """
+    Compute regression metrics for model evaluation.
+
+    Args:
+        y_true: Ground truth target values.
+        y_pred: Model predictions.
+    Returns:
+        Dictionary with MAE, RMSE and directional accuracy.
+    """
+    mae = (y_true - y_pred).abs().mean()
+    rmse = ((y_true - y_pred) ** 2).mean() ** 0.5
+    directional_acc = ((y_true.diff() > 0) == (y_pred.diff() > 0)).mean()
+
+    return {
+        "mae": round(mae, 6),
+        "rmse": round(rmse, 6),
+        "directional_accuracy": round(directional_acc, 4),
+    }
 
 
 def train_model(
@@ -61,7 +78,7 @@ def train_model(
             model.fit(X_train, y_train)
             predictions = model.predict(X_test)
 
-            fold_metrics = evaluate(predictions, y_test)
+            fold_metrics = evaluate(y_test, predictions)
             metrics_per_fold.append(fold_metrics)
 
             mlflow.log_metrics(
@@ -81,3 +98,20 @@ def train_model(
         model.log_model()
 
     return avg_metrics
+
+
+if __name__ == "__main__":
+    from stock_predictor.utils import get_latest_data_s3, create_s3_client
+    from stock_predictor.models.linear import RidgeModel
+
+    s3_client = create_s3_client()
+    df = get_latest_data_s3(s3_client, "aapl-features")
+
+    model = RidgeModel(alpha=1.0)
+    metrics = train_model(
+        model=model,
+        df=df,
+        n_splits=5,
+    )
+
+    print(metrics)
