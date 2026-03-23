@@ -17,6 +17,12 @@ FEATURE_COLS = [
     "c5",
     "c10",
     "change_new_flag",
+    "volatility",
+    "vwap_dist",
+    "rel_volume",
+    "hour",
+    "minute",
+    "day_of_week",
 ]
 TARGET_COL = "target"
 
@@ -104,16 +110,44 @@ def train_model(
 
 if __name__ == "__main__":
     from stock_predictor.utils import get_latest_data_s3, create_s3_client
-    from stock_predictor.models.linear import RidgeModel
+    from stock_predictor.models.lgbm import LGBMModel
 
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "aapl-features")
 
-    model = RidgeModel(alpha=1.0)
+    X = df[
+        [
+            "v",
+            "vw",
+            "c",
+            "n",
+            "sentiment",
+            "c1",
+            "c2",
+            "c3",
+            "c5",
+            "c10",
+            "change_new_flag",
+            "volatility",
+            "vwap_dist",
+            "rel_volume",
+            "hour",
+            "minute",
+            "day_of_week",
+        ]
+    ]
+
+    tscv = TimeSeriesSplit(n_splits=3)
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
+        print(f"Fold {fold}: train={len(train_idx)} val={len(val_idx)}")
+        print(f"  train: {X.index[train_idx[0]]} → {X.index[train_idx[-1]]}")
+        print(f"  val:   {X.index[val_idx[0]]} → {X.index[val_idx[-1]]}")
+
+    model = LGBMModel(n_estimators=100, max_depth=3, num_leaves=15, learning_rate=0.01)
     metrics = train_model(
         model=model,
         df=df,
-        n_splits=5,
+        n_splits=3,
     )
 
     print(metrics)
