@@ -36,8 +36,9 @@ def add_lag_data(df: pd.DataFrame, lag_list: list = [1, 2, 3, 5, 10]) -> pd.Data
     Returns:
         pd.DataFrame: DataFrame with lagged features added
     """
+    returns = df["c"].pct_change()
     for lag in lag_list:
-        df[f"c{lag}"] = df["c"].shift(lag)
+        df[f"c{lag}"] = returns.shift(lag)
     return df
 
 
@@ -63,7 +64,7 @@ def add_target(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: DataFrame with the target variable added
     """
-    df["target"] = df["c"].shift(-1)
+    df["target"] = df["c"].pct_change(-1)
     return df
 
 
@@ -93,6 +94,29 @@ def drop_na_values(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_new_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add new columns to the DataFrame based on the existing features.
+
+    This function can be used to create interaction terms, polynomial features, or any other derived features that may help the model capture complex relationships between the features and the target price. For example, we could add a feature that represents the ratio of volume to price, or a feature that captures the volatility of the stock over a certain period. The specific new columns to add would depend on domain knowledge and experimentation with the data.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame
+
+    Returns:
+        pd.DataFrame: DataFrame with new columns added
+    """
+    df["volatility"] = df["c"].pct_change().rolling(10).std()
+
+    df["vwap_dist"] = (df["c"] - df["vw"]) / df["vw"]
+
+    df["rel_volume"] = df["v"] / df["v"].rolling(20).mean()
+    df["hour"] = df.index.hour
+    df["minute"] = df.index.minute
+    df["day_of_week"] = df.index.dayofweek
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
@@ -100,6 +124,7 @@ if __name__ == "__main__":
     df = drop_useless_columns(df)
     df = add_lag_data(df)
     df = add_target(df)
+    df = add_new_columns(df)
     df = fill_missing_news(df)
     df = drop_na_values(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)
