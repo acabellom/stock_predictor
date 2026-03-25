@@ -117,7 +117,7 @@ def create_s3_client():
     logger.info("Creating S3 client...")
     s3 = boto3.client(
         "s3",
-        endpoint_url=os.getenv("ENDPOINT_URL"),
+        endpoint_url=os.getenv("MINIO_ENDPOINT", "http://localhost:9000"),
         aws_access_key_id=os.getenv("ROOT_USER"),
         aws_secret_access_key=os.getenv("ROOT_PASSWORD"),
     )

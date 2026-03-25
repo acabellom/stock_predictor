@@ -1,4 +1,21 @@
 services:
+  api:
+    build: .
+    container_name: stock-predictor-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_URI=models:/lgbm@staging
+      - MINIO_ENDPOINT=http://minio:9000
+      - ROOT_USER=${ROOT_USER}
+      - ROOT_PASSWORD=${ROOT_PASSWORD}
+    depends_on:
+      minio:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    restart: unless-stopped
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -32,12 +49,14 @@ services:
       - "5000:5000"
     environment:
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
       - AWS_ACCESS_KEY_ID=${ROOT_USER}
       - AWS_SECRET_ACCESS_KEY=${ROOT_PASSWORD}
+      - MLFLOW_SERVER_ALLOWED_HOSTS=*
     volumes:
       - ./mlflow_data:/mlflow
     command: >
-      mlflow server
+      mlflow server 
       --backend-store-uri sqlite:///mlflow/mlflow.db
       --artifacts-destination s3://mlflow-artifacts/
       --host 0.0.0.0

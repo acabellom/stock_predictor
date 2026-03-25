@@ -1,0 +1,14 @@
+data
+.vscode
+.ruff_cache
+.pytest_cache
+.github
+.git
+.gitignore
+Dockerfile
+LICENSE
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
