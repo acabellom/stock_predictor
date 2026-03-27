@@ -1,4 +1,4 @@
-from prefect import task
+from prefect import flow, task
 from stock_predictor.utils import create_s3_client, load_processed_data
 from stock_predictor.train import train_model
 from stock_predictor.models.lgbm import LGBMModel
@@ -38,7 +38,7 @@ def tune_model(data: pd.DataFrame):
 
 
 @task
-def train_flow(df: pd.DataFrame, model_params: dict):
+def train_model_task(df: pd.DataFrame, model_params: dict):
     model = LGBMModel(
         n_estimators=model_params["n_estimators"],
         learning_rate=model_params["learning_rate"],
@@ -53,3 +53,10 @@ def train_flow(df: pd.DataFrame, model_params: dict):
         df=df,
         n_splits=3,
     )
+
+
+@flow
+def train_flow(ticker: str = "AAPL"):
+    df = load_processed_data_s3(ticker)
+    tune_result = tune_model(df)
+    train_model_task(df, tune_result["best_params"])
