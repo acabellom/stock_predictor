@@ -137,4 +137,4 @@ def data_gathering_flow(ticker: str):
 
 
 if __name__ == "__main__":
-    data_gathering_flow("TSLA")
+    data_gathering_flow("AAPL")

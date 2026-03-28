@@ -91,7 +91,7 @@ def get_dataframe(headlines: list) -> pd.DataFrame:
 
 
 def get_sentiment_analysis(
-    df: pd.DataFrame, path_to_model: str = "./models/finbert"
+    df: pd.DataFrame, path_to_model: str = "./.models/finbert"
 ) -> pd.DataFrame:
     """
     Perform sentiment analysis on the headlines using a pre-trained model.
