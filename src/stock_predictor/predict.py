@@ -9,6 +9,9 @@ import pandas as pd
 from stock_predictor.utils import create_s3_client, get_latest_data_s3
 from stock_predictor.train import FEATURE_COLS
 
+os.environ["PREFECT_API_URL"] = os.getenv(
+    "PREFECT_API_URL", "http://localhost:4200/api"
+)
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 MODEL_URI = os.getenv("MODEL_URI", "models:/lgbm@staging")
 
@@ -141,6 +144,35 @@ def predict(request: PredictionRequest):
         model_uri=MODEL_URI,
         predictions=predictions,
     )
+
+
+@app.post("/trigger/features")
+def trigger_features(ticker: str = "AAPL"):
+    """Trigger the features flow for a given ticker."""
+    try:
+        from stock_predictor.flows_prefect.feature_flow import feature_flow
+
+        feature_flow(ticker=ticker)
+        return {"status": "ok", "ticker": ticker, "flow": "features_flow"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/trigger/train")
+def trigger_train(ticker: str = "AAPL", tune_first: bool = False):
+    """Trigger the training flow for a given ticker."""
+    try:
+        from stock_predictor.flows_prefect.train_flow import train_flow
+
+        train_flow(ticker=ticker, tune_first=tune_first)
+        return {
+            "status": "ok",
+            "ticker": ticker,
+            "flow": "train_flow",
+            "tune_first": tune_first,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
