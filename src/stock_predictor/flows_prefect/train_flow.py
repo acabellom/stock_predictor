@@ -1,5 +1,5 @@
 from prefect import flow, task
-from stock_predictor.utils import create_s3_client, load_processed_data
+from stock_predictor.utils import create_s3_client, get_latest_data_s3
 from stock_predictor.train import train_model
 from stock_predictor.models.lgbm import LGBMModel
 from stock_predictor.tune import tune
@@ -10,7 +10,7 @@ import pandas as pd
 def load_processed_data_s3(ticker: str):
     """Load the latest processed data for a given ticker from S3."""
     s3_client = create_s3_client()
-    return load_processed_data(s3_client, f"{ticker}-features")
+    return get_latest_data_s3(s3_client, f"{ticker.lower()}-features")
 
 
 @task
@@ -56,7 +56,23 @@ def train_model_task(df: pd.DataFrame, model_params: dict):
 
 
 @flow
-def train_flow(ticker: str = "AAPL"):
+def train_flow(ticker: str = "AAPL", tune_first: bool = True):
     df = load_processed_data_s3(ticker)
-    tune_result = tune_model(df)
-    train_model_task(df, tune_result["best_params"])
+    if tune_first:
+        result = tune_model(df)
+        params = result["best_params"]
+    else:
+        params = {
+            "n_estimators": 559,
+            "learning_rate": 0.0017,
+            "max_depth": 3,
+            "num_leaves": 34,
+            "min_child_samples": 43,
+            "subsample": 0.983,
+            "colsample_bytree": 0.826,
+        }
+    train_model_task(df, params)
+
+
+if __name__ == "__main__":
+    train_flow("AAPL", tune_first=False)
