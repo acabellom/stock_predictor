@@ -1,0 +1,11 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN pip install streamlit plotly requests mlflow pandas boto3 python-dotenv --quiet
+
+COPY . .
+
+ENV PYTHONPATH=/app/src
+
+CMD ["streamlit", "run", "src/stock_predictor/frontend/streamlit.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
