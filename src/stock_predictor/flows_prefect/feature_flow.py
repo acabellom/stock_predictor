@@ -13,6 +13,8 @@ from stock_predictor.features import (
     fill_missing_news,
     drop_na_values,
     add_new_columns,
+    add_rsi,
+    add_atr,
 )
 
 
@@ -31,6 +33,8 @@ def build_features(df):
     df = add_lag_data(df)
     df = add_target(df)
     df = add_new_columns(df)
+    df = add_rsi(df)
+    df = add_atr(df)
     df = fill_missing_news(df)
     df = drop_na_values(df)
     return df

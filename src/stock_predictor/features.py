@@ -64,7 +64,7 @@ def add_target(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: DataFrame with the target variable added
     """
-    df["target"] = df["c"].pct_change(-1)
+    df["target"] = df["c"].shift(-1) / df["c"] - 1
     return df
 
 
@@ -117,6 +117,31 @@ def add_new_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """
+    Add Relative Strength Index (RSI) to the DataFrame.
+    RSI measures momentum — values above 70 indicate overbought,
+    below 30 indicate oversold conditions.
+    """
+    delta = df["c"].diff()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = -delta.clip(upper=0).rolling(period).mean()
+    rs = gain / loss
+    df["rsi"] = 100 - (100 / (1 + rs))
+    return df
+
+
+def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """
+    Add Average True Range (ATR) to the DataFrame.
+    ATR measures volatility — high ATR means large price swings expected.
+    Since we dropped h and l, we approximate true range using close only.
+    """
+    tr = df["c"].diff().abs()
+    df["atr"] = tr.rolling(period).mean()
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
@@ -125,6 +150,8 @@ if __name__ == "__main__":
     df = add_lag_data(df)
     df = add_target(df)
     df = add_new_columns(df)
+    df = add_rsi(df)
+    df = add_atr(df)
     df = fill_missing_news(df)
     df = drop_na_values(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)

@@ -123,19 +123,24 @@ def predict(request: PredictionRequest):
         predictions.append(
             CandlePrediction(
                 timestamp=next_timestamp.isoformat(),
-                predicted_return=round(predicted_return, 4),
+                predicted_return=predicted_return,
                 predicted_direction=direction,
             )
         )
         next_row = current_df.iloc[[-1]].copy()
         next_row.index = [next_timestamp]
         next_row["c"] = current_df["c"].iloc[-1] * (1 + predicted_return)
-        next_row["c1"] = current_df["c"].pct_change().iloc[-1]
-        next_row["c2"] = current_df["c1"].iloc[-1]
-        next_row["c3"] = current_df["c2"].iloc[-1]
-        next_row["c5"] = current_df["c3"].iloc[-1]
-        next_row["c10"] = current_df["c5"].iloc[-1]
-
+        last_returns = current_df["c"].pct_change().iloc[-11:]
+        next_row["c1"] = last_returns.iloc[-1]
+        next_row["c2"] = last_returns.iloc[-2] if len(last_returns) > 1 else 0
+        next_row["c3"] = last_returns.iloc[-3] if len(last_returns) > 2 else 0
+        next_row["c5"] = last_returns.iloc[-5] if len(last_returns) > 4 else 0
+        next_row["c10"] = last_returns.iloc[-10] if len(last_returns) > 9 else 0
+        next_row["volatility"] = current_df["c"].pct_change().rolling(10).std().iloc[-1]
+        next_row["vwap_dist"] = (next_row["c"] - next_row["vw"]) / next_row["vw"]
+        next_row["rel_volume"] = (
+            next_row["v"] / current_df["v"].rolling(20).mean().iloc[-1]
+        )
         current_df = pd.concat([current_df, next_row])
         next_timestamp = get_next_valid_timestamp(next_timestamp)
 

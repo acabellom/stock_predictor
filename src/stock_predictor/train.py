@@ -17,12 +17,14 @@ FEATURE_COLS = [
     "c5",
     "c10",
     "change_new_flag",
-    "volatility",
-    "vwap_dist",
-    "rel_volume",
     "hour",
     "minute",
     "day_of_week",
+    "volatility",
+    "vwap_dist",
+    "rel_volume",
+    "rsi",
+    "atr",
 ]
 TARGET_COL = "target"
 
