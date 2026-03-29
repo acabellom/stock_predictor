@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import boto3
 from stock_predictor.logger_config import logger
 
-load_dotenv()
+load_dotenv(override=True)
 
 API_KEY = os.getenv("POLYGON_API_KEY")
 
@@ -160,7 +160,7 @@ def get_latest_data_s3(s3_client, bucket_name: str):
     if content == []:
         logger.info("No files found in S3 bucket. Returning empty DataFrame.")
         return pd.DataFrame()
-    if bucket_name.lower().endswith("-features"):
+    if "features" in bucket_name.lower():
         latest_file = [obj["Key"] for obj in content if obj["Key"].endswith(".csv")]
     else:
         latest_file = [obj["Key"] for obj in content if obj["Key"].startswith("raw")]
