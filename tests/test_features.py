@@ -83,7 +83,7 @@ def test_add_lag_data_adds_default_lag_columns():
 def test_add_lag_data_lag1_is_previous_close():
     df = make_df()
     result = add_lag_data(df)
-    assert result["c1"].iloc[1] == df["c"].iloc[0]
+    assert result["c1"].iloc[2] == df["c"].pct_change().iloc[1]
 
 
 def test_add_lag_data_lag1_first_row_is_nan():
@@ -146,7 +146,8 @@ def test_add_target_adds_column():
 def test_add_target_is_next_close():
     df = make_df()
     result = add_target(df)
-    assert result["target"].iloc[0] == df["c"].iloc[1]
+    expected = df["c"].iloc[1] / df["c"].iloc[0] - 1
+    assert result["target"].iloc[0] == expected
 
 
 def test_add_target_last_row_is_nan():
@@ -191,7 +192,7 @@ def test_drop_na_values_removes_first_rows_from_lags():
     df = make_df()
     df = add_lag_data(df, lag_list=[1, 2, 3, 5, 10])
     result = drop_na_values(df)
-    assert result.index[0] == df.index[10]
+    assert result.index[0] == df.index[11]
 
 
 def test_drop_na_values_removes_last_row_from_target():
