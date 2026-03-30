@@ -65,3 +65,43 @@ def test_health_check_returns_status_ok(client):
     """
     resp = client.get("/health")
     assert resp.json()["status"] == "ok"
+
+
+def test_get_next_valid_timestamp_returns_timestamp():
+    """
+    get_next_valid_timestamp() must return a pd.Timestamp.
+    Returning any other type would break the isoformat() call in /predict.
+    """
+    from stock_predictor.predict import get_next_valid_timestamp
+    import pandas as pd
+
+    ts = pd.Timestamp("2024-03-18 14:00:00", tz="UTC")
+    result = get_next_valid_timestamp(ts)
+    assert isinstance(result, pd.Timestamp)
+
+
+def test_get_next_valid_timestamp_advances_time():
+    """
+    get_next_valid_timestamp() must always return a timestamp strictly
+    after the input. Returning the same or earlier timestamp would cause
+    an infinite loop in the /predict endpoint.
+    """
+    from stock_predictor.predict import get_next_valid_timestamp
+    import pandas as pd
+
+    ts = pd.Timestamp("2024-03-18 14:00:00", tz="UTC")
+    result = get_next_valid_timestamp(ts)
+    assert result > ts
+
+
+def test_get_next_valid_timestamp_skips_weekend():
+    """
+    get_next_valid_timestamp() must skip Saturday and Sunday and return
+    a timestamp on Monday or later. Weekend candles do not exist for NYSE.
+    """
+    from stock_predictor.predict import get_next_valid_timestamp
+    import pandas as pd
+
+    saturday = pd.Timestamp("2024-03-16 20:00:00", tz="UTC")
+    result = get_next_valid_timestamp(saturday)
+    assert result.dayofweek < 5
