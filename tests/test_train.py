@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
-from stock_predictor.train import evaluate, FEATURE_COLS, TARGET_COL
+import pytest
+from unittest.mock import MagicMock, patch
+from stock_predictor.train import evaluate, train_model, FEATURE_COLS, TARGET_COL
+from stock_predictor.models.linear import RidgeModel
 
 
 def make_df(n: int = 200) -> pd.DataFrame:
@@ -99,3 +102,101 @@ def test_evaluate_values_are_rounded():
     result = evaluate(y_true, y_pred)
     for v in result.values():
         assert isinstance(v, float)
+
+
+# train_model
+
+
+def test_train_model_returns_dict_with_expected_keys():
+    """
+    train_model() must return a dict with mae, rmse and directional_accuracy.
+    These are the averaged metrics across all TimeSeriesSplit folds.
+    """
+    df = make_df()
+    model = RidgeModel()
+    with patch("stock_predictor.train.mlflow"):
+        result = train_model(model, df, n_splits=3)
+    assert "mae" in result
+    assert "rmse" in result
+    assert "directional_accuracy" in result
+
+
+def test_train_model_returns_non_negative_mae():
+    """
+    The averaged MAE returned by train_model() must be >= 0.
+    """
+    df = make_df()
+    model = RidgeModel()
+    with patch("stock_predictor.train.mlflow"):
+        result = train_model(model, df, n_splits=3)
+    assert result["mae"] >= 0
+
+
+def test_train_model_directional_accuracy_between_0_and_1():
+    """
+    The averaged directional accuracy must be a valid proportion in [0, 1].
+    """
+    df = make_df()
+    model = RidgeModel()
+    with patch("stock_predictor.train.mlflow"):
+        result = train_model(model, df, n_splits=3)
+    assert 0.0 <= result["directional_accuracy"] <= 1.0
+
+
+def test_train_model_fails_if_feature_col_missing():
+    """
+    If any column in FEATURE_COLS is missing from the DataFrame,
+    train_model() must raise a KeyError. This prevents silent failures
+    where a missing feature is ignored and the model trains on wrong data.
+    """
+    df = make_df().drop(columns=[FEATURE_COLS[0]])
+    model = RidgeModel()
+    with patch("stock_predictor.train.mlflow"):
+        with pytest.raises(KeyError):
+            train_model(model, df, n_splits=3)
+
+
+def test_train_model_fails_if_target_col_missing():
+    """
+    If the TARGET_COL is missing from the DataFrame, train_model() must
+    raise a KeyError. The target is mandatory for supervised learning.
+    """
+    df = make_df().drop(columns=[TARGET_COL])
+    model = RidgeModel()
+    with patch("stock_predictor.train.mlflow"):
+        with pytest.raises(KeyError):
+            train_model(model, df, n_splits=3)
+
+
+def test_train_model_logs_params_to_mlflow():
+    """
+    train_model() must call mlflow.log_params() at least once per run.
+    This ensures model hyperparameters are always tracked in the experiment.
+    """
+    df = make_df()
+    model = RidgeModel()
+    mock_run = MagicMock()
+    mock_run.__enter__ = MagicMock(return_value=mock_run)
+    mock_run.__exit__ = MagicMock(return_value=False)
+
+    with patch("stock_predictor.train.mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = mock_run
+        train_model(model, df, n_splits=3)
+        mock_mlflow.log_params.assert_called()
+
+
+def test_train_model_logs_metrics_to_mlflow():
+    """
+    train_model() must call mlflow.log_metrics() at least once per run.
+    This ensures evaluation results are always stored in the experiment.
+    """
+    df = make_df()
+    model = RidgeModel()
+    mock_run = MagicMock()
+    mock_run.__enter__ = MagicMock(return_value=mock_run)
+    mock_run.__exit__ = MagicMock(return_value=False)
+
+    with patch("stock_predictor.train.mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = mock_run
+        train_model(model, df, n_splits=3)
+        mock_mlflow.log_metrics.assert_called()
