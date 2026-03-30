@@ -138,3 +138,88 @@ def test_build_inference_features_not_empty():
         with patch("stock_predictor.predict.get_latest_data_s3", return_value=mock_df):
             result = build_inference_features("AAPL")
     assert not result.empty
+
+
+# /predict endpoint
+
+
+def test_predict_returns_200(client):
+    """
+    POST /predict must return HTTP 200 when valid ticker and n_candles are given
+    and data is available in MinIO.
+    """
+    mock_df = make_feature_df()
+    with patch(
+        "stock_predictor.predict.build_inference_features", return_value=mock_df
+    ):
+        resp = client.post("/predict", json={"ticker": "AAPL", "n_candles": 2})
+    assert resp.status_code == 200
+
+
+def test_predict_returns_correct_number_of_candles(client):
+    """
+    POST /predict must return exactly n_candles predictions in the response.
+    Returning fewer predictions would be a silent failure in the iterative loop.
+    """
+    mock_df = make_feature_df()
+    with patch(
+        "stock_predictor.predict.build_inference_features", return_value=mock_df
+    ):
+        resp = client.post("/predict", json={"ticker": "AAPL", "n_candles": 3})
+    assert len(resp.json()["predictions"]) == 3
+
+
+def test_predict_response_contains_expected_fields(client):
+    """
+    Each prediction in the response must contain timestamp, predicted_return
+    and predicted_direction. Missing any field would break the Streamlit dashboard.
+    """
+    mock_df = make_feature_df()
+    with patch(
+        "stock_predictor.predict.build_inference_features", return_value=mock_df
+    ):
+        resp = client.post("/predict", json={"ticker": "AAPL", "n_candles": 1})
+    pred = resp.json()["predictions"][0]
+    assert "timestamp" in pred
+    assert "predicted_return" in pred
+    assert "predicted_direction" in pred
+
+
+def test_predict_direction_is_up_or_down(client):
+    """
+    predicted_direction must be either 'up' or 'down' for every candle.
+    Any other value would break the colour coding in the Streamlit dashboard.
+    """
+    mock_df = make_feature_df()
+    with patch(
+        "stock_predictor.predict.build_inference_features", return_value=mock_df
+    ):
+        resp = client.post("/predict", json={"ticker": "AAPL", "n_candles": 3})
+    for pred in resp.json()["predictions"]:
+        assert pred["predicted_direction"] in ["up", "down"]
+
+
+def test_predict_returns_404_when_data_not_found(client):
+    """
+    POST /predict must return HTTP 404 when build_inference_features raises
+    an exception, which happens when the ticker bucket does not exist in MinIO.
+    """
+    with patch(
+        "stock_predictor.predict.build_inference_features",
+        side_effect=Exception("bucket not found"),
+    ):
+        resp = client.post("/predict", json={"ticker": "UNKNOWN", "n_candles": 1})
+    assert resp.status_code == 404
+
+
+def test_predict_returns_400_when_not_enough_data(client):
+    """
+    POST /predict must return HTTP 400 when the feature DataFrame has fewer
+    than 10 rows. This guard prevents index errors in the lag feature updates.
+    """
+    small_df = make_feature_df(n=5)
+    with patch(
+        "stock_predictor.predict.build_inference_features", return_value=small_df
+    ):
+        resp = client.post("/predict", json={"ticker": "AAPL", "n_candles": 1})
+    assert resp.status_code == 400
