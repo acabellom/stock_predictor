@@ -105,3 +105,36 @@ def test_get_next_valid_timestamp_skips_weekend():
     saturday = pd.Timestamp("2024-03-16 20:00:00", tz="UTC")
     result = get_next_valid_timestamp(saturday)
     assert result.dayofweek < 5
+
+
+# build_inference_features
+
+
+def test_build_inference_features_returns_dataframe():
+    """
+    build_inference_features() must return a pd.DataFrame.
+    Any other return type would cause a TypeError in the /predict endpoint.
+    """
+    from stock_predictor.predict import build_inference_features
+
+    mock_df = make_feature_df()
+
+    with patch("stock_predictor.predict.create_s3_client"):
+        with patch("stock_predictor.predict.get_latest_data_s3", return_value=mock_df):
+            result = build_inference_features("AAPL")
+    assert isinstance(result, pd.DataFrame)
+
+
+def test_build_inference_features_not_empty():
+    """
+    build_inference_features() must return a non-empty DataFrame.
+    An empty DataFrame would trigger the 400 error in /predict.
+    """
+    from stock_predictor.predict import build_inference_features
+
+    mock_df = make_feature_df()
+
+    with patch("stock_predictor.predict.create_s3_client"):
+        with patch("stock_predictor.predict.get_latest_data_s3", return_value=mock_df):
+            result = build_inference_features("AAPL")
+    assert not result.empty
