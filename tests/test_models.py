@@ -181,3 +181,22 @@ def test_lgbm_predict_before_fit_raises():
     model = LGBMModel()
     with pytest.raises(Exception):
         model.predict(X)
+
+
+# Interface compliance — both models must implement BaseModel
+
+
+def test_ridge_implements_base_model_interface():
+    model = RidgeModel()
+    assert hasattr(model, "fit")
+    assert hasattr(model, "predict")
+    assert hasattr(model, "get_params")
+    assert hasattr(model, "log_model")
+
+
+def test_lgbm_implements_base_model_interface():
+    model = LGBMModel()
+    assert hasattr(model, "fit")
+    assert hasattr(model, "predict")
+    assert hasattr(model, "get_params")
+    assert hasattr(model, "log_model")
