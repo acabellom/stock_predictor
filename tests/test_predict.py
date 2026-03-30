@@ -223,3 +223,26 @@ def test_predict_returns_400_when_not_enough_data(client):
     ):
         resp = client.post("/predict", json={"ticker": "AAPL", "n_candles": 1})
     assert resp.status_code == 400
+
+
+# /trigger endpoints
+
+
+def test_trigger_features_returns_200(client):
+    """
+    POST /trigger/features must return HTTP 200 when the features flow
+    completes successfully.
+    """
+    with patch("stock_predictor.flows_prefect.feature_flow.feature_flow"):
+        resp = client.post("/trigger/features?ticker=AAPL")
+    assert resp.status_code == 200
+
+
+def test_trigger_train_returns_200(client):
+    """
+    POST /trigger/train must return HTTP 200 when the training flow
+    completes successfully.
+    """
+    with patch("stock_predictor.flows_prefect.train_flow.train_flow"):
+        resp = client.post("/trigger/train?ticker=AAPL&tune_first=false")
+    assert resp.status_code == 200
