@@ -71,6 +71,8 @@ def clean_data(headlines: list) -> list:
         list: Cleaned list of headlines
     """
     cleaned_headlines = []
+    if headlines is None:
+        return []
     for headline, published_utc in headlines:
         cleaned_headline = headline.replace("\n", " ").strip()
         cleaned_headlines.append((cleaned_headline, published_utc))
