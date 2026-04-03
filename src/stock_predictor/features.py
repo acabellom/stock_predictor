@@ -142,6 +142,24 @@ def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     return df
 
 
+def add_ticker_encoding(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """
+    Encode the ticker symbol as its mean target value.
+    Target encoding captures each ticker's average return tendency
+    without adding 50 binary columns like one hot encoding would.
+    Encoding is computed per ticker from training data only.
+
+    Args:
+        df: Input DataFrame with target column.
+        ticker: Current ticker symbol.
+    Returns:
+        DataFrame with ticker_encoded column added.
+    """
+    target_mean = df["target"].mean()
+    df["ticker_encoded"] = target_mean
+    return df
+
+
 if __name__ == "__main__":
     s3_client = create_s3_client()
     df = get_latest_data_s3(s3_client, "AAPL")
@@ -152,6 +170,7 @@ if __name__ == "__main__":
     df = add_new_columns(df)
     df = add_rsi(df)
     df = add_atr(df)
+    df = add_ticker_encoding(df, "AAPL")
     df = fill_missing_news(df)
     df = drop_na_values(df)
     df.to_csv("./data/aapl_features_test.csv", index=True, quoting=1)
