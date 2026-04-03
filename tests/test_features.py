@@ -7,6 +7,7 @@ from stock_predictor.features import (
     add_target,
     fill_missing_news,
     drop_na_values,
+    add_ticker_encoding,
 )
 
 
@@ -205,3 +206,87 @@ def test_drop_na_values_removes_last_row_from_target():
 def test_drop_na_values_returns_dataframe():
     df = make_df()
     assert isinstance(drop_na_values(df), pd.DataFrame)
+
+
+def make_df_with_target(n: int = 10) -> pd.DataFrame:
+    """
+    Build a minimal DataFrame with a target column for testing add_ticker_encoding.
+    """
+    return pd.DataFrame(
+        {
+            "c": [100.0] * n,
+            "target": [float(i) for i in range(n)],
+        },
+        index=pd.date_range("2024-01-01", periods=n, freq="10min"),
+    )
+
+
+def test_add_ticker_encoding_adds_column():
+    """
+    add_ticker_encoding() must add a 'ticker_encoded' column to the DataFrame.
+    Without this column, FEATURE_COLS in train.py will raise a KeyError.
+    """
+    df = make_df_with_target()
+    result = add_ticker_encoding(df, "AAPL")
+    assert "ticker_encoded" in result.columns
+
+
+def test_add_ticker_encoding_value_equals_target_mean():
+    """
+    The ticker_encoded column must contain the mean of the target column.
+    This is the core of target encoding — each ticker maps to its average return.
+    """
+    df = make_df_with_target()
+    result = add_ticker_encoding(df, "AAPL")
+    assert result["ticker_encoded"].iloc[0] == df["target"].mean()
+
+
+def test_add_ticker_encoding_constant_across_rows():
+    """
+    All rows must have the same ticker_encoded value since it is the global
+    mean of the target. A non-constant column would indicate a per-row calculation
+    which would introduce leakage.
+    """
+    df = make_df_with_target()
+    result = add_ticker_encoding(df, "AAPL")
+    assert result["ticker_encoded"].nunique() == 1
+
+
+def test_add_ticker_encoding_different_tickers_different_values():
+    """
+    Two DataFrames with different target distributions must produce different
+    ticker_encoded values. If all tickers produce the same encoding the feature
+    carries no information about ticker identity.
+    """
+    df_aapl = make_df_with_target()
+    df_tsla = make_df_with_target()
+    df_tsla["target"] = df_tsla["target"] * 10
+
+    result_aapl = add_ticker_encoding(df_aapl, "AAPL")
+    result_tsla = add_ticker_encoding(df_tsla, "TSLA")
+
+    assert (
+        result_aapl["ticker_encoded"].iloc[0] != result_tsla["ticker_encoded"].iloc[0]
+    )
+
+
+def test_add_ticker_encoding_does_not_modify_other_columns():
+    """
+    add_ticker_encoding() must not modify any existing columns.
+    Only the new ticker_encoded column should be added.
+    """
+    df = make_df_with_target()
+    original_c = df["c"].copy()
+    original_target = df["target"].copy()
+    result = add_ticker_encoding(df, "AAPL")
+    pd.testing.assert_series_equal(result["c"], original_c)
+    pd.testing.assert_series_equal(result["target"], original_target)
+
+
+def test_add_ticker_encoding_returns_dataframe():
+    """
+    add_ticker_encoding() must return a pd.DataFrame, not None or any other type.
+    """
+    df = make_df_with_target()
+    result = add_ticker_encoding(df, "AAPL")
+    assert isinstance(result, pd.DataFrame)
