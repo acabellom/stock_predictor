@@ -15,6 +15,7 @@ from stock_predictor.features import (
     add_new_columns,
     add_rsi,
     add_atr,
+    add_ticker_encoding,
 )
 
 
@@ -35,6 +36,7 @@ def build_features(df):
     df = add_new_columns(df)
     df = add_rsi(df)
     df = add_atr(df)
+    df = add_ticker_encoding(df, "AAPL")
     df = fill_missing_news(df)
     df = drop_na_values(df)
     return df
@@ -49,11 +51,14 @@ def save_features(df, ticker: str):
 
 
 @flow
-def feature_flow(ticker: str = "AAPL"):
-    df = load_raw_data(ticker)
-    df = build_features(df)
-    save_features(df, ticker)
+def feature_flow(ticker: list = ["AAPL", "TSLA"]):
+    for t in ticker:
+        df = load_raw_data(t)
+        df = build_features(df)
+        save_features(df, t)
 
 
 if __name__ == "__main__":
-    feature_flow("AAPL")
+    from stock_predictor.flows_prefect.data_gathering_flow import TOP50_TICKERS
+
+    feature_flow(TOP50_TICKERS)

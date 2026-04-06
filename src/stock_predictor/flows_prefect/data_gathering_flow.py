@@ -106,35 +106,91 @@ def store_old_data_task(s3_client, ticker, old_file_key):
 
 
 @flow(name="Data Gathering Flow")
-def data_gathering_flow(ticker: str):
+def data_gathering_flow(tickers: list = ["AAPL", "TSLA"]):
     """
     Prefect flow to gather stock price and news data for a given ticker.
 
     Args:
         ticker (str): Stock ticker symbol (e.g., "AAPL")
     """
+    download_model_locally_task.submit()
+    for ticker in tickers:
+        logger.info(f"Starting data collection for {ticker}...")
+        s3_client = create_s3_client_task()
+        create_bucket_task(s3_client, f"{ticker.lower()}")
+        if check_data_up_to_date_task(f"{ticker.lower()}", s3_client):
+            processed_data_price = fetch_and_process_data_task.submit(ticker)
+            processed_data_news = fetch_news_data_task.submit(ticker, datetime.now())
+            df_headlines = extract_headlines_task(processed_data_news)
+            df_cleaned = clean_data_task(df_headlines)
+            df_dataframe = get_dataframe_task(df_cleaned)
+            df_sentiment = get_sentiment_analysis_task(df_dataframe)
+            df_merged = merge_prices_news_task(
+                df_sentiment, processed_data_price.result()
+            )
+            final_data, old_file_key = merge_raw_data_task(
+                f"{ticker.lower()}", s3_client, df_merged
+            )
+            logger.info(f"Processed and saved historical data for {ticker}.")
+            upload_to_s3_task(s3_client, f"{ticker.lower()}", final_data)
+            store_old_data_task(s3_client, f"{ticker.lower()}", old_file_key)
+        else:
+            logger.info(
+                f"Data for {ticker} is already up to date in S3. No new data fetched."
+            )
 
-    logger.info(f"Starting data collection for {ticker}...")
-    s3_client = create_s3_client_task()
-    create_bucket_task(s3_client, ticker)
-    if check_data_up_to_date_task(ticker, s3_client):
-        download_model_locally_task.submit()
-        processed_data_price = fetch_and_process_data_task.submit(ticker)
-        processed_data_news = fetch_news_data_task.submit(ticker, datetime.now())
-        df_headlines = extract_headlines_task(processed_data_news)
-        df_cleaned = clean_data_task(df_headlines)
-        df_dataframe = get_dataframe_task(df_cleaned)
-        df_sentiment = get_sentiment_analysis_task(df_dataframe)
-        df_merged = merge_prices_news_task(df_sentiment, processed_data_price.result())
-        final_data, old_file_key = merge_raw_data_task(ticker, s3_client, df_merged)
-        logger.info(f"Processed and saved historical data for {ticker}.")
-        upload_to_s3_task(s3_client, ticker, final_data)
-        store_old_data_task(s3_client, ticker, old_file_key)
-    else:
-        logger.info(
-            f"Data for {ticker} is already up to date in S3. No new data fetched."
-        )
 
+TOP50_TICKERS = [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "GOOGL",
+    "META",
+    "AMZN",
+    "AMD",
+    "AVGO",
+    "QCOM",
+    "INTC",
+    "JPM",
+    "BAC",
+    "WFC",
+    "GS-bucket",
+    "MS-bucket",
+    "XOM",
+    "CVX",
+    "COP",
+    "SLB",
+    "WMT",
+    "COST",
+    "PG-bucket",
+    "KO-bucket",
+    "PEP",
+    "MCD",
+    "NKE",
+    "SBUX",
+    "JNJ",
+    "PFE",
+    "UNH",
+    "ABBV",
+    "MRK",
+    "CAT",
+    "BA-bucket",
+    "GE-bucket",
+    "HON",
+    "UPS",
+    "CRM",
+    "ORCL",
+    "ADBE",
+    "CSCO",
+    "NOW",
+    "TSLA",
+    "NFLX",
+    "DIS",
+    "PYPL",
+    "SPGI",
+    "V-bucket",
+    "MA-bucket",
+]
 
 if __name__ == "__main__":
-    data_gathering_flow("AAPL")
+    data_gathering_flow(TOP50_TICKERS)

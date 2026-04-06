@@ -56,10 +56,15 @@ def train_model_task(df: pd.DataFrame, model_params: dict):
 
 
 @flow
-def train_flow(ticker: str = "AAPL", tune_first: bool = True):
-    df = load_processed_data_s3(ticker)
+def train_flow(tickers: list = ["AAPL", "TSLA"], tune_first: bool = True):
+    dfs = []
+    for ticker in tickers:
+        df = load_processed_data_s3(ticker)
+        df["ticker"] = ticker
+        dfs.append(df)
+    df_all = pd.concat(dfs).sort_index()
     if tune_first:
-        result = tune_model(df)
+        result = tune_model(df_all)
         params = result["best_params"]
     else:
         params = {
@@ -71,8 +76,8 @@ def train_flow(ticker: str = "AAPL", tune_first: bool = True):
             "subsample": 0.983,
             "colsample_bytree": 0.826,
         }
-    train_model_task(df, params)
+    train_model_task(df_all, params)
 
 
 if __name__ == "__main__":
-    train_flow("AAPL", tune_first=False)
+    train_flow(["AAPL", "TSLA"], tune_first=True)
