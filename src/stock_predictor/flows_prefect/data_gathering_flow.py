@@ -141,30 +141,25 @@ def data_gathering_flow(tickers: list = ["AAPL", "TSLA"]):
 
 
 TOP50_TICKERS = [
-    # Big Tech (muy importantes)
     "AAPL",
     "MSFT",
     "NVDA",
     "GOOGL",
     "META",
     "AMZN",
-    # Semiconductores (alta señal)
     "AMD",
     "AVGO",
     "QCOM",
     "INTC",
-    # Finanzas (estabilidad + contexto macro)
     "JPM",
     "BAC",
     "WFC",
     "GS-bucket",
     "MS-bucket",
-    # Energía (movimientos fuertes)
     "XOM",
     "CVX",
     "COP",
     "SLB",
-    # Consumo (defensivos + tendencia)
     "WMT",
     "COST",
     "PG-bucket",
@@ -173,25 +168,21 @@ TOP50_TICKERS = [
     "MCD",
     "NKE",
     "SBUX",
-    # Salud (menos ruido extremo)
     "JNJ",
     "PFE",
     "UNH",
     "ABBV",
     "MRK",
-    # Industriales (macro-driven)
     "CAT",
     "BA-bucket",
     "GE-bucket",
     "HON",
     "UPS",
-    # Tech / software adicional
     "CRM",
     "ORCL",
     "ADBE",
     "CSCO",
     "NOW",
-    # Otros con buena señal
     "TSLA",
     "NFLX",
     "DIS",
