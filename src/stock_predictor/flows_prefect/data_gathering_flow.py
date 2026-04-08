@@ -23,6 +23,7 @@ from stock_predictor.data_collector_news import (
     download_model_locally,
 )
 from datetime import datetime
+import os
 
 
 @task
@@ -193,4 +194,7 @@ TOP50_TICKERS = [
 ]
 
 if __name__ == "__main__":
-    data_gathering_flow(TOP50_TICKERS)
+    if os.getenv("GET_50_TICKERS", "False").lower() == "true":
+        data_gathering_flow(TOP50_TICKERS)
+    else:
+        data_gathering_flow(["AAPL"])

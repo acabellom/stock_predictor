@@ -4,6 +4,7 @@ from stock_predictor.train import train_model
 from stock_predictor.models.lgbm import LGBMModel
 from stock_predictor.tune import tune
 import pandas as pd
+import os
 
 
 @task
@@ -80,4 +81,9 @@ def train_flow(tickers: list = ["AAPL", "TSLA"], tune_first: bool = True):
 
 
 if __name__ == "__main__":
-    train_flow(["AAPL", "TSLA"], tune_first=True)
+    from stock_predictor.flows_prefect.data_gathering_flow import TOP50_TICKERS
+
+    if os.getenv("GET_50_TICKERS", "False").lower() == "true":
+        train_flow(TOP50_TICKERS, tune_first=True)
+    else:
+        train_flow(["AAPL", "TSLA"], tune_first=True)

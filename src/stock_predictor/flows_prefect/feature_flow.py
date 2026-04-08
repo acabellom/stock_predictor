@@ -1,3 +1,5 @@
+import os
+
 from prefect import flow, task
 from stock_predictor.utils import (
     create_s3_client,
@@ -61,4 +63,7 @@ def feature_flow(ticker: list = ["AAPL", "TSLA"]):
 if __name__ == "__main__":
     from stock_predictor.flows_prefect.data_gathering_flow import TOP50_TICKERS
 
-    feature_flow(TOP50_TICKERS)
+    if os.getenv("GET_50_TICKERS", "False").lower() == "true":
+        feature_flow(TOP50_TICKERS)
+    else:
+        feature_flow(["AAPL"])
