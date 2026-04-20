@@ -1,22 +1,28 @@
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-![Python CI](https://github.com/acabellom/stock_predictor/actions/workflows/python-ci.yml/badge.svg?branch=master&event=push)
+# 📈 Stock Predictor
 
+> Can combining price action features with NLP-based news sentiment beat a random baseline at predicting intraday stock direction? This project explores that question with a production-grade ML stack — from raw data ingestion to a live inference API.
 
-# stock_predictor
+[![Python](https://img.shields.io/badge/python-3.10-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-model-9B59B6)](https://lightgbm.readthedocs.io/)
+[![MLflow](https://img.shields.io/badge/MLflow-tracking-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
+[![Prefect](https://img.shields.io/badge/Prefect-orchestration-2D6DF6?logo=prefect&logoColor=white)](https://www.prefect.io/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-serving-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-containerized-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-End-to-end ML system for intraday stock price direction prediction using 10-minute OHLCV candles and news sentiment analysis.
+---
 
-## Results
+## 📊 Results
 
 | Model | Target | MAE | RMSE | Directional Accuracy |
-|-------|--------|-----|------|----------------------|
+|---|---|---|---|---|
 | Ridge (baseline) | Close price | 0.2524 | 0.4520 | 47.2% |
-| LightGBM (final) | Return  | 0.0011 | 0.0019 | **61.2%** |
+| LightGBM (final) | Return | 0.0011 | 0.0019 | **61.2%** |
 
-> MAE and RMSE are not directly comparable between models as they use different targets. The key metric is directional accuracy — whether the model correctly predicts whether the next candle goes up or down. A random baseline would score 50%.
+MAE and RMSE are not directly comparable between models as they use different targets. The key metric is directional accuracy — whether the model correctly predicts whether the next candle goes up or down. A random baseline would score 50%.
 
-## Architecture
+---
+
+## 🏗️ Architecture
 
 ```
 Polygon API ──► data_gathering_flow (Prefect)
@@ -39,10 +45,12 @@ Polygon API ──► data_gathering_flow (Prefect)
                 Streamlit dashboard
 ```
 
-## Stack
+---
+
+## 🛠️ Stack
 
 | Layer | Technology |
-|-------|-----------|
+|---|---|
 | Data storage | MinIO (S3-compatible) |
 | Orchestration | Prefect |
 | Experiment tracking | MLflow |
@@ -51,7 +59,9 @@ Polygon API ──► data_gathering_flow (Prefect)
 | Dashboard | Streamlit |
 | Containerisation | Docker Compose |
 
-## Features
+---
+
+## ⚙️ Features
 
 **Price features:** lagged returns (t-1, t-2, t-3, t-5, t-10), RSI(14), ATR(14), VWAP distance, realised volatility, relative volume
 
@@ -59,7 +69,9 @@ Polygon API ──► data_gathering_flow (Prefect)
 
 **Temporal features:** hour, minute, day of week, `is_short_session` flag for NYSE early closes
 
-## Project structure
+---
+
+## 📁 Project Structure
 
 ```
 stock_predictor/
@@ -90,11 +102,13 @@ stock_predictor/
 └── docker-compose.yml
 ```
 
-## Quickstart
+---
+
+## 🚀 Quickstart
 
 **Prerequisites:** Docker, Docker Compose, Polygon API key
 
-**1. Clone and configure**
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/acabellom/stock_predictor
@@ -103,45 +117,43 @@ cp .env.example .env
 # edit .env with your credentials
 ```
 
-**2. Start the stack**
+### 2. Start the stack
 
 ```bash
 docker compose up -d
 ```
 
-Services:
-
 | Service | URL |
-|---------|-----|
+|---|---|
 | MinIO console | http://localhost:9001 |
 | Prefect UI | http://localhost:4200 |
 | MLflow UI | http://localhost:5000 |
 | API docs | http://localhost:8000/docs |
 | Dashboard | http://localhost:8501 |
 
-**3. Collect data**
+### 3. Collect data
 
 ```bash
 poetry run python src/stock_predictor/flows_prefect/data_gathering_flow.py
 ```
 
-**4. Build features**
+### 4. Build features
 
 ```bash
 poetry run python src/stock_predictor/flows_prefect/feature_flow.py
 ```
 
-**5. Train**
+### 5. Train
 
 ```bash
 poetry run python src/stock_predictor/flows_prefect/train_flow.py
 ```
 
-**6. Register the model**
+### 6. Register the model
 
-Go to http://localhost:5000 → Models → Register the best run → add alias `staging`
+Go to `http://localhost:5000` → Models → Register the best run → add alias `staging`
 
-**7. Predict**
+### 7. Predict
 
 ```bash
 curl -X POST http://localhost:8000/predict \
@@ -149,25 +161,31 @@ curl -X POST http://localhost:8000/predict \
   -d '{"ticker": "AAPL", "n_candles": 3}'
 ```
 
-## Environment variables
+---
 
-```bash
-ROOT_USER=           # MinIO root user
-ROOT_PASSWORD=       # MinIO root password
-POLYGON_API_KEY=     # Polygon.io API key
-MLFLOW_TRACKING_URI= # default: http://localhost:5000
-MODEL_URI=           # default: models:/lgbm@staging
-PREFECT_API_URL=     # default: http://localhost:4200/api
-MINIO_ENDPOINT=      # default: http://localhost:9000
-```
+## 🔑 Environment Variables
 
-## Running tests
+| Variable | Default |
+|---|---|
+| `ROOT_USER` | — MinIO root user |
+| `ROOT_PASSWORD` | — MinIO root password |
+| `POLYGON_API_KEY` | — Polygon.io API key |
+| `MLFLOW_TRACKING_URI` | `http://localhost:5000` |
+| `MODEL_URI` | `models:/lgbm@staging` |
+| `PREFECT_API_URL` | `http://localhost:4200/api` |
+| `MINIO_ENDPOINT` | `http://localhost:9000` |
+
+---
+
+## 🧪 Tests
 
 ```bash
 poetry run pytest tests/ -v
 ```
 
-## Key design decisions
+---
+
+## 🧠 Key Design Decisions
 
 **Target as return instead of price** — predicting the raw close price causes the model to learn that "tomorrow's price ≈ today's price", producing low MAE but no directional signal. Using percentage return as the target forces the model to learn actual price movement patterns.
 
@@ -175,10 +193,18 @@ poetry run pytest tests/ -v
 
 **Baseline first** — Ridge regression was trained before LightGBM. If LightGBM had not clearly outperformed Ridge (61.2% vs 47.2% directional accuracy), it would have indicated a feature engineering problem rather than a model problem.
 
-**`news_changed` flag** — the EDA revealed that a single headline covers an average of multiple 10-minute candles. The raw sentiment score is therefore highly autocorrelated and carries little new information. The flag that fires when the headline changes is more informative than the score itself.
+**`news_changed` flag** — EDA revealed that a single headline covers an average of multiple 10-minute candles. The raw sentiment score is therefore highly autocorrelated and carries little new information. The flag that fires when the headline changes is more informative than the score itself.
 
-## Limitations
+---
+
+## ⚠️ Limitations
 
 - Predictions beyond 1–2 candles ahead degrade quickly due to error accumulation in the iterative inference loop
 - The model is trained on AAPL only — generalisation to other tickers is not validated
 - 61.2% directional accuracy is measured before transaction costs; net profitability depends on spread and commission
+
+---
+
+## 📄 License
+
+MIT
